@@ -233,7 +233,9 @@ function applyRoleAccess(){
 async function loadAll(){
   const jobs=[loadRooms(),loadBookings(),loadOrders()];
   if(isOwner()) jobs.push(loadTx(),loadProfile());
-  await Promise.all(jobs); render();
+  await Promise.all(jobs);
+  if(isOwner()) await syncCompletedOrderIncome();
+  render();
 }
 async function loadRooms(){
   const {data,error} = await sb.from('rooms').select('*').order('room_number');
@@ -254,6 +256,25 @@ async function loadTx(){
   const {data,error} = await sb.from('transactions').select('*').order('transaction_date',{ascending:false});
   if(error){alert('Gagal memuat transaksi: '+error.message);tx=[];return;}
   tx=data||[];
+}
+
+// Pesanan berstatus Selesai dicatat satu kali sebagai pemasukan. Penanda ID pesanan
+// di kolom catatan mencegah transaksi ganda saat aplikasi dibuka atau dimuat ulang.
+async function syncCompletedOrderIncome(){
+  if(!isOwner()) return;
+  let added=0;
+  for(const order of orders.filter(o=>o.status==='done')){
+    const marker=`Pesanan konsumen #${order.id}`;
+    if(tx.some(t=>String(t.notes||'').includes(marker))) continue;
+    const orderDate=order.created_at ? String(order.created_at).slice(0,10) : dateToday();
+    const amount=Number(order.total_price ?? (Number(order.quantity||0)*Number(order.unit_price||0)));
+    if(!(amount>0)) continue;
+    const payload={transaction_type:'income',category:'Pesanan Konsumen',amount,transaction_date:orderDate,payment_method:'Lainnya',notes:`${marker} · ${order.customer_name||'Pelanggan'} · ${order.item_name||'Pesanan'}`};
+    const {error}=await sb.from('transactions').insert(payload);
+    if(error){alert('Pesanan selesai belum dapat dicatat sebagai pemasukan: '+error.message);return;}
+    added++;
+  }
+  if(added) await loadTx();
 }
 async function loadProfile(){
   const {data,error} = await sb.from('hotel_profile').select('*').limit(1);
@@ -361,7 +382,7 @@ function renderOrders(){
     `<button class="secondary" onclick="updateOrderStatus(${Number(o.id)},'processing')">Proses</button> <button class="secondary" onclick="updateOrderStatus(${Number(o.id)},'done')">Selesai</button>`
   ]));
 }
-window.updateOrderStatus=async(id,status)=>{const {error}=await sb.from('customer_orders').update({status}).eq('id',id);if(error){alert(error.message);return;}await loadOrders();render();};
+window.updateOrderStatus=async(id,status)=>{const {error}=await sb.from('customer_orders').update({status}).eq('id',id);if(error){alert(error.message);return;}await loadOrders();if(isOwner()&&status==='done')await syncCompletedOrderIncome();render();};
 $('orderForm').onsubmit=async e=>{
   e.preventDefault();const quantity=Number($('orderQty').value),unitPrice=Number($('orderPrice').value);
   const payload={customer_name:$('orderCustomer').value.trim(),room_number:$('orderRoom').value.trim()||null,item_name:$('orderItem').value.trim(),quantity,unit_price:unitPrice,total_price:quantity*unitPrice,status:$('orderStatus').value,created_by:currentUserId};
