@@ -31,6 +31,9 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
 .section{display:none}
 .section.show{display:block}
 .message{padding:10px;margin:8px 0;border-radius:8px;background:#edf5f5}
+.report-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.report-actions button{min-width:120px}
+.report-note{font-size:13px;color:#637983;margin:8px 0}
 @media(max-width:600px){.wrap{padding:10px}.nav button{flex:1 1 42%}.card strong{font-size:20px}}
 </style>
 </head>
@@ -128,7 +131,8 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
     </div>
     <div id="finance" class="section">
       <div class="panel">
-        <h3>Tambah Transaksi</h3>
+        <h3 id="financeHeading">Tambah Transaksi</h3>
+        <p id="financeHelp" class="muted"></p>
         <form class="grid" id="txForm">
           <select id="txType"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select>
           <input id="txCategory" placeholder="Kategori" required>
@@ -139,16 +143,22 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
           <button>Simpan transaksi</button>
         </form>
       </div>
-      <div class="panel"><h3>Transaksi</h3><div id="txList"></div></div>
+      <div class="panel" id="txListPanel"><h3>Transaksi</h3><div id="txList"></div></div>
     </div>
 
     <div id="reports" class="section">
       <div class="panel">
         <h3>Laporan Keuangan</h3>
+        <div class="report-actions" id="reportPresets">
+          <button type="button" onclick="setReportPeriod('daily')">Harian</button>
+          <button type="button" onclick="setReportPeriod('weekly')">Mingguan</button>
+          <button type="button" onclick="setReportPeriod('monthly')">Bulanan</button>
+        </div>
         <form class="grid" id="reportForm">
-          <input id="reportFrom" type="date"><input id="reportTo" type="date">
+          <label>Dari tanggal<input id="reportFrom" type="date"></label><label>Sampai tanggal<input id="reportTo" type="date"></label>
           <button>Filter laporan</button>
         </form>
+        <p class="report-note" id="reportPeriodLabel">Pilih periode laporan.</p>
         <div id="reportResult"></div>
         <button id="csvBtn" class="secondary">Unduh CSV</button>
       </div>
@@ -212,8 +222,13 @@ async function start(){
 }
 function isOwner(){ return currentRole === 'owner'; }
 function applyRoleAccess(){
-  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('hidden',!isOwner() && ['finance','settings'].includes(b.dataset.tab)));
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('hidden',!isOwner() && ['settings'].includes(b.dataset.tab)));
   const sub=document.querySelector('.head .muted'); if(sub) sub.textContent=isOwner()?'Dashboard pengelolaan hotel · Pemilik':'Dashboard operasional · Karyawan';
+  $('txType').value=isOwner()?'income':'expense';
+  $('txType').classList.toggle('hidden',!isOwner());
+  $('financeHeading').textContent=isOwner()?'Tambah Transaksi':'Catat Pengeluaran Hotel';
+  $('financeHelp').textContent=isOwner()?'Catat pemasukan atau pengeluaran hotel.':'Karyawan hanya dapat mencatat pengeluaran. Laporan keuangan lengkap hanya dapat dilihat pemilik.';
+  $('txListPanel').classList.toggle('hidden',!isOwner());
 }
 async function loadAll(){
   const jobs=[loadRooms(),loadBookings(),loadOrders()];
@@ -387,12 +402,14 @@ window.delBooking=async id=>{
 };
 $('txForm').onsubmit=async e=>{
   e.preventDefault();
-  const payload={transaction_type:$('txType').value,category:$('txCategory').value.trim(),
+  const chosenType=isOwner()?$('txType').value:'expense';
+  const payload={transaction_type:chosenType,category:$('txCategory').value.trim(),
     amount:Number($('txAmount').value),transaction_date:$('txDate').value,
     payment_method:$('txMethod').value,notes:$('txNotes').value.trim()};
   const {error}=await sb.from('transactions').insert(payload);
   if(error){alert('Gagal menyimpan transaksi: '+error.message);return;}
-  e.target.reset();$('txDate').value=dateToday();await loadTx();render();
+  e.target.reset();$('txDate').value=dateToday();$('txType').value=isOwner()?'income':'expense';
+  if(isOwner()){await loadTx();render();}else{alert('Pengeluaran berhasil dicatat.');}
 };
 window.delTx=async id=>{
   if(!confirm('Hapus transaksi?'))return;
@@ -440,7 +457,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
   b.classList.add('active');
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));
 
-  if(!isOwner() && ['finance','settings'].includes(b.dataset.tab)){alert('Menu ini hanya untuk pemilik hotel.');return;}
+  if(!isOwner() && ['settings'].includes(b.dataset.tab)){alert('Menu ini hanya untuk pemilik hotel.');return;}
   const target = $(b.dataset.tab);
   if (!target) {
     alert('Halaman menu tidak ditemukan: ' + b.dataset.tab);
@@ -456,20 +473,31 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
 
 $('txDate').value=dateToday();
 $('reportForm').onsubmit=e=>{e.preventDefault();renderReport();};
+function isoDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+window.setReportPeriod=function(period){
+  const now=new Date();let from=new Date(now),to=new Date(now);
+  if(period==='weekly'){const day=(now.getDay()+6)%7;from.setDate(now.getDate()-day);to=new Date(from);to.setDate(from.getDate()+6);}
+  if(period==='monthly'){from=new Date(now.getFullYear(),now.getMonth(),1);to=new Date(now.getFullYear(),now.getMonth()+1,0);}
+  $('reportFrom').value=isoDate(from);$('reportTo').value=isoDate(to);renderReport();
+};
 function renderReport(){
   if(!isOwner()){
-    $('reportForm').classList.add('hidden'); $('csvBtn').classList.add('hidden');
+    $('reportForm').classList.add('hidden');$('reportPresets').classList.add('hidden');$('csvBtn').classList.add('hidden');
+    $('reportPeriodLabel').textContent='Ringkasan operasional hanya untuk akun karyawan.';
     $('reportResult').innerHTML=`<div class="cards"><div class="card">Jumlah kamar<strong>${rooms.length}</strong></div><div class="card">Tersedia<strong>${rooms.filter(r=>roomStatusInfo(r).key==='available').length}</strong></div><div class="card">Terisi<strong>${rooms.filter(r=>roomStatusInfo(r).key==='occupied').length}</strong></div><div class="card">Check-in<strong>${bookings.filter(b=>b.status==='checked_in').length}</strong></div><div class="card">Check-out<strong>${bookings.filter(b=>b.status==='checked_out').length}</strong></div><div class="card">Pesanan baru<strong>${orders.filter(o=>o.status==='new').length}</strong></div></div>`;
     return;
   }
-  $('reportForm').classList.remove('hidden'); $('csvBtn').classList.remove('hidden');
+  $('reportForm').classList.remove('hidden');$('reportPresets').classList.remove('hidden');$('csvBtn').classList.remove('hidden');
   const from=$('reportFrom').value||'0000-01-01',to=$('reportTo').value||'9999-12-31';
   const filtered=tx.filter(t=>t.transaction_date>=from&&t.transaction_date<=to);
   const inc=filtered.filter(t=>t.transaction_type==='income').reduce((a,t)=>a+Number(t.amount),0);
   const exp=filtered.filter(t=>t.transaction_type==='expense').reduce((a,t)=>a+Number(t.amount),0);
-  $('reportResult').innerHTML=`<div class="cards"><div class="card">Pemasukan<strong>${money(inc)}</strong></div><div class="card">Pengeluaran<strong>${money(exp)}</strong></div><div class="card">Selisih<strong>${money(inc-exp)}</strong></div></div>`;
+  const profit=inc-exp;
+  $('reportPeriodLabel').textContent=`Periode laporan: ${from} sampai ${to}`;
+  $('reportResult').innerHTML=`<div class="cards"><div class="card">Total pemasukan<strong>${money(inc)}</strong></div><div class="card">Total pengeluaran<strong>${money(exp)}</strong></div><div class="card">Keuntungan / (Kerugian) bersih<strong>${money(profit)}</strong></div><div class="card">Jumlah transaksi<strong>${filtered.length}</strong></div></div><div class="panel"><h3>Rincian Transaksi</h3>${table(['Tanggal','Jenis','Kategori','Jumlah','Metode','Catatan'],filtered.map(t=>[esc(t.transaction_date),t.transaction_type==='income'?'Pemasukan':'Pengeluaran',esc(t.category),money(t.amount),esc(t.payment_method||''),esc(t.notes||'')]))}</div>`;
   window.filteredReport=filtered;
 }
+setReportPeriod('monthly');
 $('csvBtn').onclick=()=>{
   const data=window.filteredReport||tx;
   const rows=[['Jenis','Kategori','Jumlah','Tanggal','Metode','Catatan'],
