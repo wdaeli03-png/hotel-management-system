@@ -1,61 +1,365 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hotel Management System</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6f8;color:#172b36}button,input,select,textarea{font:inherit;padding:10px;border:1px solid #ccd6dc;border-radius:8px}button{background:#087e75;color:white;border:0;cursor:pointer}button.secondary{background:#e4eef0;color:#17323b}button.danger{background:#b54444}.hidden{display:none!important}.wrap{max-width:1200px;margin:auto;padding:18px}.login{max-width:400px;margin:10vh auto;background:white;padding:26px;border-radius:14px;box-shadow:0 4px 20px #0001}.login input{width:100%;margin:8px 0}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.nav{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.nav button{background:#e1ebee;color:#16333a}.nav button.active{background:#087e75;color:white}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.card{background:white;padding:16px;border-radius:12px;box-shadow:0 2px 10px #0001}.card strong{display:block;font-size:24px;margin-top:8px}.panel{background:white;border-radius:12px;padding:16px;margin:12px 0;overflow:auto}table{width:100%;border-collapse:collapse;min-width:600px}td,th{padding:10px;border-bottom:1px solid #e1e8eb;text-align:left}form.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}form.grid input,form.grid select,form.grid textarea{width:100%}.muted{color:#637983;font-size:13px}.section{display:none}.section.show{display:block}.message{padding:10px;margin:8px 0;border-radius:8px;background:#edf5f5}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f6f8;color:#172b36}
+button,input,select,textarea{font:inherit;padding:10px;border:1px solid #ccd6dc;border-radius:8px}
+button{background:#087e75;color:white;border:0;cursor:pointer}
+button.secondary{background:#e4eef0;color:#17323b}
+button.danger{background:#b54444}
+.hidden{display:none!important}
+.wrap{max-width:1200px;margin:auto;padding:18px}
+.login{max-width:400px;margin:10vh auto;background:white;padding:26px;border-radius:14px;box-shadow:0 4px 20px #0001}
+.login input{width:100%;margin:8px 0}
+.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.nav{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.nav button{background:#e1ebee;color:#16333a}
+.nav button.active{background:#087e75;color:white}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.card{background:white;padding:16px;border-radius:12px;box-shadow:0 2px 10px #0001}
+.card strong{display:block;font-size:24px;margin-top:8px}
+.panel{background:white;border-radius:12px;padding:16px;margin:12px 0;overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:600px}
+td,th{padding:10px;border-bottom:1px solid #e1e8eb;text-align:left}
+form.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+form.grid input,form.grid select,form.grid textarea{width:100%}
+.muted{color:#637983;font-size:13px}
+.section{display:none}
+.section.show{display:block}
+.message{padding:10px;margin:8px 0;border-radius:8px;background:#edf5f5}
+@media(max-width:600px){.wrap{padding:10px}.nav button{flex:1 1 42%}.card strong{font-size:20px}}
 </style>
 </head>
-<body><div class="wrap">
-<div id="login" class="login"><h2>Hotel Management System</h2><p class="muted">Login pemilik / admin</p><input id="email" type="email" placeholder="Email" autocomplete="username"><input id="password" type="password" placeholder="Password" autocomplete="current-password"><button id="loginBtn" style="width:100%">Login</button><p id="loginMsg" class="muted"></p></div>
-<div id="app" class="hidden">
-<div class="head"><div><h2 id="hotelTitle">Hotel Management</h2><p class="muted">Dashboard pengelolaan hotel</p></div><button class="secondary" id="logout">Logout</button></div>
-<div class="nav"><button class="active" data-tab="dashboard">Dashboard</button><button data-tab="rooms">Kamar</button><button data-tab="bookings">Booking & Tamu</button><button data-tab="finance">Keuangan</button><button data-tab="reports">Laporan</button><button data-tab="settings">Pengaturan</button></div>
-<div id="dashboard" class="section show"><div class="cards" id="dashCards"></div><div class="panel"><h3>Ringkasan</h3><div id="dashSummary"></div></div></div>
-<div id="rooms" class="section"><div class="panel"><h3>Tambah Kamar</h3><form class="grid" id="roomForm"><input id="roomNo" placeholder="Nomor kamar" required><input id="roomType" placeholder="Tipe kamar" required><input id="roomPrice" type="number" placeholder="Harga per malam" required><select id="roomStatus"><option value="available">Tersedia</option><option value="maintenance">Perbaikan</option></select><input id="roomNotes" placeholder="Catatan"><button>Simpan kamar</button></form></div><div class="panel"><h3>Daftar Kamar</h3><div id="roomList"></div></div></div>
-<div id="bookings" class="section"><div class="panel"><h3>Tambah Booking</h3><form class="grid" id="bookingForm"><input id="guest" placeholder="Nama tamu" required><input id="phone" placeholder="Nomor telepon"><select id="bookRoom"></select><input id="checkin" type="date" required><input id="checkout" type="date" required><input id="total" type="number" placeholder="Total biaya" required><input id="deposit" type="number" placeholder="Deposit" value="0"><select id="bookStatus"><option value="booked">Booking</option><option value="checked_in">Check-in</option><option value="checked_out">Check-out</option><option value="cancelled">Batal</option></select><input id="bookNotes" placeholder="Catatan"><button>Simpan booking</button></form></div><div class="panel"><h3>Daftar Booking</h3><div id="bookingList"></div></div></div>
-<div id="finance" class="section"><div class="panel"><h3>Tambah Transaksi</h3><form class="grid" id="txForm"><select id="txType"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select><input id="txCategory" placeholder="Kategori" required><input id="txAmount" type="number" placeholder="Jumlah" required><input id="txDate" type="date" required><select id="txMethod"><option>Cash</option><option>Transfer</option><option>QRIS</option><option>Lainnya</option></select><input id="txNotes" placeholder="Catatan"><button>Simpan transaksi</button></form></div><div class="panel"><h3>Transaksi</h3><div id="txList"></div></div></div>
-<div id="reports" class="section"><div class="panel"><h3>Laporan Keuangan</h3><form class="grid" id="reportForm"><input id="reportFrom" type="date"><input id="reportTo" type="date"><button>Filter laporan</button></form><div id="reportResult"></div><button id="csvBtn" class="secondary">Unduh CSV</button></div></div>
-<div id="settings" class="section"><div class="panel"><h3>Profil Hotel</h3><form class="grid" id="profileForm"><input id="hotelName" placeholder="Nama hotel"><input id="hotelAddress" placeholder="Alamat"><input id="hotelPhone" placeholder="Telepon"><button>Simpan profil</button></form></div></div>
-<p class="muted">Data tersimpan online di Supabase. Gunakan akun login yang telah dibuat.</p></div></div>
+<body>
+<div class="wrap">
+  <div id="login" class="login">
+    <h2>Hotel Management System</h2>
+    <p class="muted">Login pemilik / admin</p>
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="loginBtn" style="width:100%">Login</button>
+    <p id="loginMsg" class="muted"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="head">
+      <div><h2 id="hotelTitle">Hotel Management</h2><p class="muted">Dashboard pengelolaan hotel</p></div>
+      <button class="secondary" id="logout">Logout</button>
+    </div>
+
+    <div class="nav">
+      <button class="active" data-tab="dashboard">Dashboard</button>
+      <button data-tab="rooms">Kamar</button>
+      <button data-tab="bookings">Booking &amp; Tamu</button>
+      <button data-tab="finance">Keuangan</button>
+      <button data-tab="reports">Laporan</button>
+      <button data-tab="settings">Pengaturan</button>
+    </div>
+
+    <div id="dashboard" class="section show">
+      <div class="cards" id="dashCards"></div>
+      <div class="panel"><h3>Ringkasan</h3><div id="dashSummary"></div></div>
+    </div>
+
+    <div id="rooms" class="section">
+      <div class="panel">
+        <h3>Tambah Kamar</h3>
+        <form class="grid" id="roomForm">
+          <input id="roomNo" placeholder="Nomor kamar" required>
+          <input id="roomType" placeholder="Tipe kamar" required>
+          <input id="roomPrice" type="number" min="0" placeholder="Harga per malam" required>
+          <select id="roomStatus"><option value="available">Tersedia</option><option value="maintenance">Perbaikan</option></select>
+          <input id="roomNotes" placeholder="Catatan">
+          <button>Simpan kamar</button>
+        </form>
+      </div>
+      <div class="panel"><h3>Daftar Kamar</h3><div id="roomList"></div></div>
+    </div>
+
+    <div id="bookings" class="section">
+      <div class="panel">
+        <h3>Tambah Booking</h3>
+        <form class="grid" id="bookingForm">
+          <input id="guest" placeholder="Nama tamu" required>
+          <input id="phone" placeholder="Nomor telepon">
+          <select id="bookRoom" required></select>
+          <input id="checkin" type="date" required>
+          <input id="checkout" type="date" required>
+          <input id="total" type="number" min="0" placeholder="Total biaya" required>
+          <input id="deposit" type="number" min="0" placeholder="Deposit" value="0">
+          <select id="bookStatus">
+            <option value="booked">Booking</option><option value="checked_in">Check-in</option>
+            <option value="checked_out">Check-out</option><option value="cancelled">Batal</option>
+          </select>
+          <input id="bookNotes" placeholder="Catatan">
+          <button>Simpan booking</button>
+        </form>
+      </div>
+      <div class="panel"><h3>Daftar Booking</h3><div id="bookingList"></div></div>
+    </div>
+
+    <div id="finance" class="section">
+      <div class="panel">
+        <h3>Tambah Transaksi</h3>
+        <form class="grid" id="txForm">
+          <select id="txType"><option value="income">Pemasukan</option><option value="expense">Pengeluaran</option></select>
+          <input id="txCategory" placeholder="Kategori" required>
+          <input id="txAmount" type="number" min="0" placeholder="Jumlah" required>
+          <input id="txDate" type="date" required>
+          <select id="txMethod"><option>Cash</option><option>Transfer</option><option>QRIS</option><option>Lainnya</option></select>
+          <input id="txNotes" placeholder="Catatan">
+          <button>Simpan transaksi</button>
+        </form>
+      </div>
+      <div class="panel"><h3>Transaksi</h3><div id="txList"></div></div>
+    </div>
+
+    <div id="reports" class="section">
+      <div class="panel">
+        <h3>Laporan Keuangan</h3>
+        <form class="grid" id="reportForm">
+          <input id="reportFrom" type="date"><input id="reportTo" type="date">
+          <button>Filter laporan</button>
+        </form>
+        <div id="reportResult"></div>
+        <button id="csvBtn" class="secondary">Unduh CSV</button>
+      </div>
+    </div>
+
+    <div id="settings" class="section">
+      <div class="panel">
+        <h3>Pengaturan Profil Hotel</h3>
+        <form class="grid" id="profileForm">
+          <input id="hotelName" placeholder="Nama hotel" required>
+          <input id="hotelAddress" placeholder="Alamat hotel">
+          <input id="hotelPhone" placeholder="Nomor telepon">
+          <button type="submit">Simpan profil</button>
+        </form>
+        <p id="profileMsg" class="muted"></p>
+      </div>
+    </div>
+    <p class="muted">Data tersimpan online di Supabase. Gunakan akun login yang telah dibuat.</p>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const SUPABASE_URL="https://qzgqzqhuomjnziivttai.supabase.co";
-const SUPABASE_KEY="sb_publishable_A5x7I70p0avhxr3LKPYWJw_sHb8z2OU";
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-let rooms=[],bookings=[],tx=[],profile={};
-const $=id=>document.getElementById(id), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), dateToday=()=>new Date().toISOString().slice(0,10);
-function msg(s){$('loginMsg').textContent=s}
-$('loginBtn').onclick=async()=>{msg('Memproses login...');let {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)msg(error.message);else start()};
-$('logout').onclick=async()=>{await sb.auth.signOut();location.reload()};
-sb.auth.getSession().then(({data})=>{if(data.session)start()});
-async function start(){ $('login').classList.add('hidden');$('app').classList.remove('hidden');await loadAll()}
-async function loadAll(){await Promise.all([loadRooms(),loadBookings(),loadTx(),loadProfile()]);render()}
-async function loadRooms(){let {data,error}=await sb.from('rooms').select('*').order('room_number');if(error)alert(error.message);rooms=data||[]}
-async function loadBookings(){let {data,error}=await sb.from('bookings').select('*').order('created_at',{ascending:false});if(error)alert(error.message);bookings=data||[]}
-async function loadTx(){let {data,error}=await sb.from('transactions').select('*').order('transaction_date',{ascending:false});if(error)alert(error.message);tx=data||[]}
-async function loadProfile(){let {data,error}=await sb.from('hotel_profile').select('*').limit(1);if(error)alert(error.message);profile=data?.[0]||{};$('hotelTitle').textContent=profile.hotel_name||'Hotel Management';$('hotelName').value=profile.hotel_name||'';$('hotelAddress').value=profile.address||'';$('hotelPhone').value=profile.phone||''}
-function render(){renderDash();renderRooms();renderBookings();renderTx();renderReport();fillRoomSelect()}
-function renderDash(){let today=dateToday(),income=tx.filter(t=>t.transaction_type==='income'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0),expense=tx.filter(t=>t.transaction_type==='expense'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0),occupied=bookings.filter(b=>b.status==='checked_in').length,available=rooms.filter(r=>r.status==='available').length,maint=rooms.filter(r=>r.status==='maintenance').length;
-$('dashCards').innerHTML=[['Jumlah kamar',rooms.length],['Check-in',occupied],['Tersedia',available],['Perbaikan',maint],['Pemasukan hari ini',money(income)],['Pengeluaran hari ini',money(expense)],['Net hari ini',money(income-expense)]].map(x=>`<div class="card">${x[0]}<strong>${x[1]}</strong></div>`).join('');
-$('dashSummary').textContent=`Total booking tercatat: ${bookings.length} | Total transaksi: ${tx.length}`}
-function renderRooms(){$('roomList').innerHTML=table(['Nomor','Tipe','Harga','Status','Catatan',''],rooms.map(r=>[r.room_number,r.room_type,money(r.price),r.status,r.notes||'',`<button class="danger" onclick="delRoom(${r.id})">Hapus</button>`]));}
-function fillRoomSelect(){$('bookRoom').innerHTML=rooms.map(r=>`<option value="${r.id}">${esc(r.room_number)} - ${esc(r.room_type)}</option>`).join('')}
-function renderBookings(){$('bookingList').innerHTML=table(['Tamu','Telepon','Kamar','Check-in','Check-out','Total','Deposit','Status',''],bookings.map(b=>[esc(b.guest_name),esc(b.phone||''),rooms.find(r=>r.id===b.room_id)?.room_number||b.room_id,b.check_in,b.check_out,money(b.total_price),money(b.deposit),b.status,`<button class="danger" onclick="delBooking(${b.id})">Hapus</button>`]));}
-function renderTx(){$('txList').innerHTML=table(['Jenis','Kategori','Jumlah','Tanggal','Metode','Catatan',''],tx.map(t=>[t.transaction_type==='income'?'Pemasukan':'Pengeluaran',esc(t.category),money(t.amount),t.transaction_date,esc(t.payment_method||''),esc(t.notes||''),`<button class="danger" onclick="delTx(${t.id})">Hapus</button>`]));}
-function table(headers,rows){if(!rows.length)return'<p class="muted">Belum ada data.</p>';return'<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table>'}
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-$('roomForm').onsubmit=async e=>{e.preventDefault();let {error}=await sb.from('rooms').insert({room_number:$('roomNo').value,room_type:$('roomType').value,price:Number($('roomPrice').value),status:$('roomStatus').value,notes:$('roomNotes').value});if(error)alert(error.message);else{e.target.reset();await loadRooms();render()}};
-window.delRoom=async id=>{if(!confirm('Hapus kamar ini?'))return;let {error}=await sb.from('rooms').delete().eq('id',id);if(error)alert(error.message);else{await loadRooms();render()}};
-$('bookingForm').onsubmit=async e=>{e.preventDefault();let start=$('checkin').value,end=$('checkout').value,room=Number($('bookRoom').value);if(end<=start){alert('Tanggal check-out harus setelah check-in');return}let conflict=bookings.some(b=>b.room_id===room&&['booked','checked_in'].includes(b.status)&&start<b.check_out&&end>b.check_in);if(conflict){alert('Kamar sudah memiliki booking pada rentang tanggal ini.');return}let {error}=await sb.from('bookings').insert({guest_name:$('guest').value,phone:$('phone').value,room_id:room,check_in:start,check_out:end,total_price:Number($('total').value),deposit:Number($('deposit').value||0),status:$('bookStatus').value,notes:$('bookNotes').value});if(error)alert(error.message);else{e.target.reset();$('deposit').value=0;await loadBookings();render()}};
-window.delBooking=async id=>{if(!confirm('Hapus booking?'))return;let {error}=await sb.from('bookings').delete().eq('id',id);if(error)alert(error.message);else{await loadBookings();render()}};
-$('txForm').onsubmit=async e=>{e.preventDefault();let {error}=await sb.from('transactions').insert({transaction_type:$('txType').value,category:$('txCategory').value,amount:Number($('txAmount').value),transaction_date:$('txDate').value,payment_method:$('txMethod').value,notes:$('txNotes').value});if(error)alert(error.message);else{e.target.reset();$('txDate').value=dateToday();await loadTx();render()}};
-window.delTx=async id=>{if(!confirm('Hapus transaksi?'))return;let {error}=await sb.from('transactions').delete().eq('id',id);if(error)alert(error.message);else{await loadTx();render()}};
-$('profileForm').onsubmit=async e=>{e.preventDefault();let payload={hotel_name:$('hotelName').value,address:$('hotelAddress').value,phone:$('hotelPhone').value};if(profile.id){let {error}=await sb.from('hotel_profile').update(payload).eq('id',profile.id);if(error)alert(error.message)}else{let {error}=await sb.from('hotel_profile').insert(payload);if(error)alert(error.message)}await loadProfile()};
-document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));$(b.dataset.tab).classList.add('show')});
+'use strict';
+
+const SUPABASE_URL = "https://qzgqzqhuomjnziivttai.supabase.co";
+const SUPABASE_KEY = "sb_publishable_A5x7I70p0avhxr3LKPYWJw_sHb8z2OU";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let rooms = [], bookings = [], tx = [], profile = {};
+const $ = id => document.getElementById(id);
+const money = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+const dateToday = () => new Date().toISOString().slice(0,10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function loginMessage(s){ $('loginMsg').textContent = s; }
+function profileMessage(s){ $('profileMsg').textContent = s; }
+
+$('loginBtn').onclick = async () => {
+  loginMessage('Memproses login...');
+  const {error} = await sb.auth.signInWithPassword({
+    email:$('email').value.trim(), password:$('password').value
+  });
+  if(error){ loginMessage(error.message); return; }
+  await start();
+};
+$('logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+sb.auth.getSession().then(({data,error}) => {
+  if(error) loginMessage(error.message);
+  if(data && data.session) start();
+});
+
+async function start(){
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  await loadAll();
+}
+async function loadAll(){
+  await Promise.all([loadRooms(),loadBookings(),loadTx(),loadProfile()]);
+  render();
+}
+async function loadRooms(){
+  const {data,error} = await sb.from('rooms').select('*').order('room_number');
+  if(error){alert('Gagal memuat kamar: '+error.message);rooms=[];return;}
+  rooms=data||[];
+}
+async function loadBookings(){
+  const {data,error} = await sb.from('bookings').select('*').order('created_at',{ascending:false});
+  if(error){alert('Gagal memuat booking: '+error.message);bookings=[];return;}
+  bookings=data||[];
+}
+async function loadTx(){
+  const {data,error} = await sb.from('transactions').select('*').order('transaction_date',{ascending:false});
+  if(error){alert('Gagal memuat transaksi: '+error.message);tx=[];return;}
+  tx=data||[];
+}
+async function loadProfile(){
+  const {data,error} = await sb.from('hotel_profile').select('*').limit(1);
+  if(error){alert('Gagal memuat profil hotel: '+error.message);return;}
+  profile=(data && data.length)?data[0]:{};
+  $('hotelTitle').textContent=profile.hotel_name||'Hotel Management';
+  $('hotelName').value=profile.hotel_name||'';
+  $('hotelAddress').value=profile.address||'';
+  $('hotelPhone').value=profile.phone||'';
+}
+function render(){
+  renderDash();renderRooms();renderBookings();renderTx();renderReport();fillRoomSelect();
+}
+function renderDash(){
+  const today=dateToday();
+  const income=tx.filter(t=>t.transaction_type==='income'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0);
+  const expense=tx.filter(t=>t.transaction_type==='expense'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0);
+  const occupied=bookings.filter(b=>b.status==='checked_in').length;
+  const available=rooms.filter(r=>r.status==='available').length;
+  const maint=rooms.filter(r=>r.status==='maintenance').length;
+  $('dashCards').innerHTML=[
+    ['Jumlah kamar',rooms.length],['Check-in',occupied],['Tersedia',available],
+    ['Perbaikan',maint],['Pemasukan hari ini',money(income)],
+    ['Pengeluaran hari ini',money(expense)],['Selisih hari ini',money(income-expense)]
+  ].map(x=>`<div class="card">${x[0]}<strong>${x[1]}</strong></div>`).join('');
+  $('dashSummary').textContent=`Total booking tercatat: ${bookings.length} | Total transaksi: ${tx.length}`;
+}
+function table(headers,rows){
+  if(!rows.length)return '<p class="muted">Belum ada data.</p>';
+  return '<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(row=>'<tr>'+row.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+}
+function renderRooms(){
+  $('roomList').innerHTML=table(['Nomor','Tipe','Harga','Status','Catatan',''],rooms.map(r=>[
+    esc(r.room_number),esc(r.room_type),money(r.price),esc(r.status),esc(r.notes||''),
+    `<button class="danger" onclick="delRoom(${Number(r.id)})">Hapus</button>`
+  ]));
+}
+function fillRoomSelect(){
+  $('bookRoom').innerHTML=rooms.map(r=>`<option value="${esc(r.id)}">${esc(r.room_number)} - ${esc(r.room_type)}</option>`).join('');
+}
+function renderBookings(){
+  $('bookingList').innerHTML=table(['Tamu','Telepon','Kamar','Check-in','Check-out','Total','Deposit','Status',''],bookings.map(b=>[
+    esc(b.guest_name),esc(b.phone||''),esc(rooms.find(r=>String(r.id)===String(b.room_id))?.room_number||b.room_id),
+    esc(b.check_in),esc(b.check_out),money(b.total_price),money(b.deposit),esc(b.status),
+    `<button class="danger" onclick="delBooking(${Number(b.id)})">Hapus</button>`
+  ]));
+}
+function renderTx(){
+  $('txList').innerHTML=table(['Jenis','Kategori','Jumlah','Tanggal','Metode','Catatan',''],tx.map(t=>[
+    t.transaction_type==='income'?'Pemasukan':'Pengeluaran',esc(t.category),money(t.amount),
+    esc(t.transaction_date),esc(t.payment_method||''),esc(t.notes||''),
+    `<button class="danger" onclick="delTx(${Number(t.id)})">Hapus</button>`
+  ]));
+}
+$('roomForm').onsubmit=async e=>{
+  e.preventDefault();
+  const payload={room_number:$('roomNo').value.trim(),room_type:$('roomType').value.trim(),
+    price:Number($('roomPrice').value),status:$('roomStatus').value,notes:$('roomNotes').value.trim()};
+  const {error}=await sb.from('rooms').insert(payload);
+  if(error){alert('Gagal menyimpan kamar: '+error.message);return;}
+  e.target.reset();await loadRooms();render();
+};
+window.delRoom=async id=>{
+  if(!confirm('Hapus kamar ini?'))return;
+  const {error}=await sb.from('rooms').delete().eq('id',id);
+  if(error){alert(error.message);return;}await loadRooms();render();
+};
+$('bookingForm').onsubmit=async e=>{
+  e.preventDefault();
+  const start=$('checkin').value,end=$('checkout').value,room=Number($('bookRoom').value);
+  if(!room){alert('Tambahkan kamar terlebih dahulu.');return;}
+  if(end<=start){alert('Tanggal check-out harus setelah check-in.');return;}
+  const conflict=bookings.some(b=>Number(b.room_id)===room&&['booked','checked_in'].includes(b.status)&&start<b.check_out&&end>b.check_in);
+  if(conflict){alert('Kamar sudah memiliki booking pada rentang tanggal ini.');return;}
+  const payload={guest_name:$('guest').value.trim(),phone:$('phone').value.trim(),room_id:room,
+    check_in:start,check_out:end,total_price:Number($('total').value),deposit:Number($('deposit').value||0),
+    status:$('bookStatus').value,notes:$('bookNotes').value.trim()};
+  const {error}=await sb.from('bookings').insert(payload);
+  if(error){alert('Gagal menyimpan booking: '+error.message);return;}
+  e.target.reset();$('deposit').value=0;await loadBookings();render();
+};
+window.delBooking=async id=>{
+  if(!confirm('Hapus booking?'))return;
+  const {error}=await sb.from('bookings').delete().eq('id',id);
+  if(error){alert(error.message);return;}await loadBookings();render();
+};
+$('txForm').onsubmit=async e=>{
+  e.preventDefault();
+  const payload={transaction_type:$('txType').value,category:$('txCategory').value.trim(),
+    amount:Number($('txAmount').value),transaction_date:$('txDate').value,
+    payment_method:$('txMethod').value,notes:$('txNotes').value.trim()};
+  const {error}=await sb.from('transactions').insert(payload);
+  if(error){alert('Gagal menyimpan transaksi: '+error.message);return;}
+  e.target.reset();$('txDate').value=dateToday();await loadTx();render();
+};
+window.delTx=async id=>{
+  if(!confirm('Hapus transaksi?'))return;
+  const {error}=await sb.from('transactions').delete().eq('id',id);
+  if(error){alert(error.message);return;}await loadTx();render();
+};
+
+/* Simpan profil: update baris yang sudah ada, atau insert jika tabel masih kosong. */
+$('profileForm').onsubmit=async e=>{
+  e.preventDefault();
+  const button=e.submitter||$('profileForm').querySelector('button[type="submit"]');
+  button.disabled=true;button.textContent='Menyimpan...';
+  profileMessage('Sedang menyimpan profil hotel...');
+  const payload={
+    hotel_name:$('hotelName').value.trim(),
+    address:$('hotelAddress').value.trim(),
+    phone:$('hotelPhone').value.trim()
+  };
+  try{
+    let result;
+    if(profile && profile.id!==undefined && profile.id!==null){
+      result=await sb.from('hotel_profile').update(payload).eq('id',profile.id);
+    }else{
+      result=await sb.from('hotel_profile').insert(payload);
+    }
+    if(result.error){
+      profileMessage('Gagal menyimpan: '+result.error.message);
+      alert('Gagal menyimpan profil hotel: '+result.error.message);
+      return;
+    }
+    await loadProfile();
+    profileMessage('Profil hotel berhasil disimpan.');
+    alert('Profil hotel berhasil disimpan.');
+  }catch(err){
+    profileMessage('Terjadi kesalahan: '+err.message);
+    alert('Terjadi kesalahan: '+err.message);
+  }finally{
+    button.disabled=false;button.textContent='Simpan profil';
+  }
+};
+
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));
+  $(b.dataset.tab).classList.add('show');
+});
 $('txDate').value=dateToday();
-$('reportForm').onsubmit=e=>{e.preventDefault();renderReport()};
-function renderReport(){let from=$('reportFrom').value||'0000-01-01',to=$('reportTo').value||'9999-12-31',filtered=tx.filter(t=>t.transaction_date>=from&&t.transaction_date<=to),inc=filtered.filter(t=>t.transaction_type==='income').reduce((a,t)=>a+Number(t.amount),0),exp=filtered.filter(t=>t.transaction_type==='expense').reduce((a,t)=>a+Number(t.amount),0);$('reportResult').innerHTML=`<div class="cards"><div class="card">Pemasukan<strong>${money(inc)}</strong></div><div class="card">Pengeluaran<strong>${money(exp)}</strong></div><div class="card">Selisih<strong>${money(inc-exp)}</strong></div></div>`;window.filteredReport=filtered}
-$('csvBtn').onclick=()=>{let data=window.filteredReport||tx,rows=[['Jenis','Kategori','Jumlah','Tanggal','Metode','Catatan'],...data.map(t=>[t.transaction_type,t.category,t.amount,t.transaction_date,t.payment_method,t.notes])],csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),blob=new Blob([csv],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='laporan-hotel.csv';a.click()};
-</script></body></html>
+$('reportForm').onsubmit=e=>{e.preventDefault();renderReport();};
+function renderReport(){
+  const from=$('reportFrom').value||'0000-01-01',to=$('reportTo').value||'9999-12-31';
+  const filtered=tx.filter(t=>t.transaction_date>=from&&t.transaction_date<=to);
+  const inc=filtered.filter(t=>t.transaction_type==='income').reduce((a,t)=>a+Number(t.amount),0);
+  const exp=filtered.filter(t=>t.transaction_type==='expense').reduce((a,t)=>a+Number(t.amount),0);
+  $('reportResult').innerHTML=`<div class="cards"><div class="card">Pemasukan<strong>${money(inc)}</strong></div><div class="card">Pengeluaran<strong>${money(exp)}</strong></div><div class="card">Selisih<strong>${money(inc-exp)}</strong></div></div>`;
+  window.filteredReport=filtered;
+}
+$('csvBtn').onclick=()=>{
+  const data=window.filteredReport||tx;
+  const rows=[['Jenis','Kategori','Jumlah','Tanggal','Metode','Catatan'],
+    ...data.map(t=>[t.transaction_type,t.category,t.amount,t.transaction_date,t.payment_method,t.notes])];
+  const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='laporan-hotel.csv';a.click();
+  URL.revokeObjectURL(a.href);
+};
+</script>
+</body>
+</html>
