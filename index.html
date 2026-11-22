@@ -167,11 +167,11 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
 
     <div id="repair" class="section">
       <div class="panel">
-        <h3>Perbaiki Data Saya</h3>
-        <p class="muted">Hanya data yang dibuat oleh akun karyawan ini yang dapat diperbaiki. Data karyawan lain dan data lama tanpa penanda pembuat tidak ditampilkan.</p>
-        <h4>Booking &amp; Tamu Saya</h4><div id="myBookingRepairs"></div>
-        <h4>Pesanan Pelanggan Saya</h4><div id="myOrderRepairs"></div>
-        <h4>Pengeluaran Saya</h4><div id="myExpenseRepairs"></div>
+        <h3>Perbaiki Data</h3>
+        <p class="muted">Karyawan dapat melihat dan memperbaiki entrian Booking, Pesanan Pelanggan, dan Pengeluaran yang dibuat oleh karyawan lain maupun pemilik hotel.</p>
+        <h4>Booking &amp; Tamu</h4><div id="myBookingRepairs"></div>
+        <h4>Pesanan Pelanggan</h4><div id="myOrderRepairs"></div>
+        <h4>Pengeluaran Hotel</h4><div id="myExpenseRepairs"></div>
         <p id="repairMessage" class="muted"></p>
       </div>
     </div>
@@ -451,18 +451,14 @@ window.delTx=async id=>{
   if(error){alert(error.message);return;}await loadTx();render();
 };
 
-/* Menu perbaikan dibatasi dengan filter created_by dan diperkuat RLS Supabase. */
+/* Menu perbaikan bersama memakai RPC Supabase agar akses lintas akun hanya tersedia melalui menu ini. */
 let myRepairBookings=[], myRepairOrders=[], myRepairExpenses=[];
 async function loadMyRepairData(){
   if(isOwner()) return;
-  $('repairMessage').textContent='Memuat data milik akun ini...';
-  const [b,o,t]=await Promise.all([
-    sb.from('bookings').select('*').eq('created_by',currentUserId).order('created_at',{ascending:false}),
-    sb.from('customer_orders').select('*').eq('created_by',currentUserId).order('created_at',{ascending:false}),
-    sb.from('transactions').select('*').eq('created_by',currentUserId).eq('transaction_type','expense').order('transaction_date',{ascending:false})
-  ]);
-  if(b.error||o.error||t.error){$('repairMessage').textContent='Gagal memuat data: '+[b.error,o.error,t.error].filter(Boolean).map(x=>x.message).join(' | ');return;}
-  myRepairBookings=b.data||[];myRepairOrders=o.data||[];myRepairExpenses=t.data||[];
+  $('repairMessage').textContent='Memuat semua entrian hotel...';
+  const {data,error}=await sb.rpc('get_repair_data');
+  if(error){$('repairMessage').textContent='Gagal memuat data: '+error.message;return;}
+  myRepairBookings=data?.bookings||[];myRepairOrders=data?.orders||[];myRepairExpenses=data?.expenses||[];
   const btn=(fn,id)=>`<button type="button" class="secondary" onclick="${fn}(${Number(id)})">Perbaiki</button>`;
   $('myBookingRepairs').innerHTML=table(['Tamu','Kamar','Check-in','Check-out','Status',''],myRepairBookings.map(x=>[esc(x.guest_name),esc(rooms.find(r=>String(r.id)===String(x.room_id))?.room_number||x.room_id),esc(x.check_in),esc(x.check_out),esc(bookingStatusLabel(x.status)),btn('editMyBooking',x.id)]));
   $('myOrderRepairs').innerHTML=table(['Pelanggan','Pesanan','Jumlah','Total','Status',''],myRepairOrders.map(x=>[esc(x.customer_name),esc(x.item_name),Number(x.quantity),money(x.total_price),esc(orderStatusLabel(x.status)),btn('editMyOrder',x.id)]));
@@ -476,7 +472,7 @@ window.editMyBooking=async id=>{
   const check_in=prompt('Tanggal check-in (YYYY-MM-DD):',x.check_in||'');if(check_in===null)return;
   const check_out=prompt('Tanggal check-out (YYYY-MM-DD):',x.check_out||'');if(check_out===null)return;
   if(!guest.trim()||!check_in||!check_out||check_out<=check_in){alert('Nama dan tanggal tidak valid.');return;}
-  const {error}=await sb.from('bookings').update({guest_name:guest.trim(),phone:phone.trim(),check_in,check_out}).eq('id',id).eq('created_by',currentUserId);
+  const {error}=await sb.rpc('repair_booking',{p_id:id,p_guest_name:guest.trim(),p_phone:phone.trim(),p_check_in:check_in,p_check_out:check_out});
   if(error){alert('Gagal memperbaiki booking: '+error.message);return;}await loadBookings();await loadMyRepairData();render();alert('Data booking berhasil diperbaiki.');
 };
 window.editMyOrder=async id=>{
@@ -485,7 +481,7 @@ window.editMyOrder=async id=>{
   const item_name=prompt('Nama pesanan:',x.item_name||'');if(item_name===null)return;
   const quantity=Number(prompt('Jumlah:',x.quantity));if(!Number.isFinite(quantity)||quantity<1){alert('Jumlah tidak valid.');return;}
   const unit_price=Number(prompt('Harga satuan:',x.unit_price));if(!Number.isFinite(unit_price)||unit_price<0){alert('Harga tidak valid.');return;}
-  const {error}=await sb.from('customer_orders').update({customer_name:customer_name.trim(),item_name:item_name.trim(),quantity,unit_price,total_price:quantity*unit_price}).eq('id',id).eq('created_by',currentUserId);
+  const {error}=await sb.rpc('repair_order',{p_id:id,p_customer_name:customer_name.trim(),p_item_name:item_name.trim(),p_quantity:quantity,p_unit_price:unit_price});
   if(error){alert('Gagal memperbaiki pesanan: '+error.message);return;}await loadOrders();await loadMyRepairData();render();alert('Pesanan berhasil diperbaiki.');
 };
 window.editMyExpense=async id=>{
@@ -494,7 +490,7 @@ window.editMyExpense=async id=>{
   const amount=Number(prompt('Jumlah pengeluaran:',x.amount));if(!Number.isFinite(amount)||amount<0){alert('Jumlah tidak valid.');return;}
   const transaction_date=prompt('Tanggal (YYYY-MM-DD):',x.transaction_date||'');if(transaction_date===null)return;
   const notes=prompt('Catatan:',x.notes||'');if(notes===null)return;
-  const {error}=await sb.from('transactions').update({category:category.trim(),amount,transaction_date,notes:notes.trim()}).eq('id',id).eq('created_by',currentUserId).eq('transaction_type','expense');
+  const {error}=await sb.rpc('repair_expense',{p_id:id,p_category:category.trim(),p_amount:amount,p_transaction_date:transaction_date,p_notes:notes.trim()});
   if(error){alert('Gagal memperbaiki pengeluaran: '+error.message);return;}await loadMyRepairData();alert('Pengeluaran berhasil diperbaiki.');
 };
 
