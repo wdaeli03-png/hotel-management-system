@@ -62,6 +62,7 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       <button data-tab="orders">Pesanan Pelanggan</button>
       <button data-tab="finance">Keuangan</button>
       <button data-tab="reports">Laporan</button>
+      <button data-tab="repair" id="repairNav" class="hidden">Perbaiki Data</button>
       <button data-tab="settings">Pengaturan</button>
     </div>
 
@@ -164,6 +165,17 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       </div>
     </div>
 
+    <div id="repair" class="section">
+      <div class="panel">
+        <h3>Perbaiki Data Saya</h3>
+        <p class="muted">Hanya data yang dibuat oleh akun karyawan ini yang dapat diperbaiki. Data karyawan lain dan data lama tanpa penanda pembuat tidak ditampilkan.</p>
+        <h4>Booking &amp; Tamu Saya</h4><div id="myBookingRepairs"></div>
+        <h4>Pesanan Pelanggan Saya</h4><div id="myOrderRepairs"></div>
+        <h4>Pengeluaran Saya</h4><div id="myExpenseRepairs"></div>
+        <p id="repairMessage" class="muted"></p>
+      </div>
+    </div>
+
     <div id="settings" class="section">
       <div class="panel">
         <h3>Pengaturan Profil Hotel</h3>
@@ -223,6 +235,7 @@ async function start(){
 function isOwner(){ return currentRole === 'owner'; }
 function applyRoleAccess(){
   document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('hidden',!isOwner() && ['settings'].includes(b.dataset.tab)));
+  $('repairNav').classList.toggle('hidden',isOwner());
   const sub=document.querySelector('.head .muted'); if(sub) sub.textContent=isOwner()?'Dashboard pengelolaan hotel · Pemilik':'Dashboard operasional · Karyawan';
   $('txType').value=isOwner()?'income':'expense';
   $('txType').classList.toggle('hidden',!isOwner());
@@ -411,7 +424,7 @@ $('bookingForm').onsubmit=async e=>{
   if(conflict){alert('Kamar sudah memiliki booking pada rentang tanggal ini.');return;}
   const payload={guest_name:$('guest').value.trim(),phone:$('phone').value.trim(),room_id:room,
     check_in:start,check_out:end,total_price:Number($('total').value),deposit:Number($('deposit').value||0),
-    status:$('bookStatus').value,notes:$('bookNotes').value.trim()};
+    status:$('bookStatus').value,notes:$('bookNotes').value.trim(),created_by:currentUserId};
   const {error}=await sb.from('bookings').insert(payload);
   if(error){alert('Gagal menyimpan booking: '+error.message);return;}
   e.target.reset();$('deposit').value=0;await loadBookings();render();
@@ -426,7 +439,7 @@ $('txForm').onsubmit=async e=>{
   const chosenType=isOwner()?$('txType').value:'expense';
   const payload={transaction_type:chosenType,category:$('txCategory').value.trim(),
     amount:Number($('txAmount').value),transaction_date:$('txDate').value,
-    payment_method:$('txMethod').value,notes:$('txNotes').value.trim()};
+    payment_method:$('txMethod').value,notes:$('txNotes').value.trim(),created_by:currentUserId};
   const {error}=await sb.from('transactions').insert(payload);
   if(error){alert('Gagal menyimpan transaksi: '+error.message);return;}
   e.target.reset();$('txDate').value=dateToday();$('txType').value=isOwner()?'income':'expense';
@@ -436,6 +449,53 @@ window.delTx=async id=>{
   if(!confirm('Hapus transaksi?'))return;
   const {error}=await sb.from('transactions').delete().eq('id',id);
   if(error){alert(error.message);return;}await loadTx();render();
+};
+
+/* Menu perbaikan dibatasi dengan filter created_by dan diperkuat RLS Supabase. */
+let myRepairBookings=[], myRepairOrders=[], myRepairExpenses=[];
+async function loadMyRepairData(){
+  if(isOwner()) return;
+  $('repairMessage').textContent='Memuat data milik akun ini...';
+  const [b,o,t]=await Promise.all([
+    sb.from('bookings').select('*').eq('created_by',currentUserId).order('created_at',{ascending:false}),
+    sb.from('customer_orders').select('*').eq('created_by',currentUserId).order('created_at',{ascending:false}),
+    sb.from('transactions').select('*').eq('created_by',currentUserId).eq('transaction_type','expense').order('transaction_date',{ascending:false})
+  ]);
+  if(b.error||o.error||t.error){$('repairMessage').textContent='Gagal memuat data: '+[b.error,o.error,t.error].filter(Boolean).map(x=>x.message).join(' | ');return;}
+  myRepairBookings=b.data||[];myRepairOrders=o.data||[];myRepairExpenses=t.data||[];
+  const btn=(fn,id)=>`<button type="button" class="secondary" onclick="${fn}(${Number(id)})">Perbaiki</button>`;
+  $('myBookingRepairs').innerHTML=table(['Tamu','Kamar','Check-in','Check-out','Status',''],myRepairBookings.map(x=>[esc(x.guest_name),esc(rooms.find(r=>String(r.id)===String(x.room_id))?.room_number||x.room_id),esc(x.check_in),esc(x.check_out),esc(bookingStatusLabel(x.status)),btn('editMyBooking',x.id)]));
+  $('myOrderRepairs').innerHTML=table(['Pelanggan','Pesanan','Jumlah','Total','Status',''],myRepairOrders.map(x=>[esc(x.customer_name),esc(x.item_name),Number(x.quantity),money(x.total_price),esc(orderStatusLabel(x.status)),btn('editMyOrder',x.id)]));
+  $('myExpenseRepairs').innerHTML=table(['Tanggal','Kategori','Jumlah','Metode','Catatan',''],myRepairExpenses.map(x=>[esc(x.transaction_date),esc(x.category),money(x.amount),esc(x.payment_method||''),esc(x.notes||''),btn('editMyExpense',x.id)]));
+  $('repairMessage').textContent='Data yang dapat diperbaiki: '+(myRepairBookings.length+myRepairOrders.length+myRepairExpenses.length)+'.';
+}
+window.editMyBooking=async id=>{
+  const x=myRepairBookings.find(v=>Number(v.id)===Number(id));if(!x)return;
+  const guest=prompt('Nama tamu:',x.guest_name||'');if(guest===null)return;
+  const phone=prompt('Nomor telepon:',x.phone||'');if(phone===null)return;
+  const check_in=prompt('Tanggal check-in (YYYY-MM-DD):',x.check_in||'');if(check_in===null)return;
+  const check_out=prompt('Tanggal check-out (YYYY-MM-DD):',x.check_out||'');if(check_out===null)return;
+  if(!guest.trim()||!check_in||!check_out||check_out<=check_in){alert('Nama dan tanggal tidak valid.');return;}
+  const {error}=await sb.from('bookings').update({guest_name:guest.trim(),phone:phone.trim(),check_in,check_out}).eq('id',id).eq('created_by',currentUserId);
+  if(error){alert('Gagal memperbaiki booking: '+error.message);return;}await loadBookings();await loadMyRepairData();render();alert('Data booking berhasil diperbaiki.');
+};
+window.editMyOrder=async id=>{
+  const x=myRepairOrders.find(v=>Number(v.id)===Number(id));if(!x)return;
+  const customer_name=prompt('Nama pelanggan:',x.customer_name||'');if(customer_name===null)return;
+  const item_name=prompt('Nama pesanan:',x.item_name||'');if(item_name===null)return;
+  const quantity=Number(prompt('Jumlah:',x.quantity));if(!Number.isFinite(quantity)||quantity<1){alert('Jumlah tidak valid.');return;}
+  const unit_price=Number(prompt('Harga satuan:',x.unit_price));if(!Number.isFinite(unit_price)||unit_price<0){alert('Harga tidak valid.');return;}
+  const {error}=await sb.from('customer_orders').update({customer_name:customer_name.trim(),item_name:item_name.trim(),quantity,unit_price,total_price:quantity*unit_price}).eq('id',id).eq('created_by',currentUserId);
+  if(error){alert('Gagal memperbaiki pesanan: '+error.message);return;}await loadOrders();await loadMyRepairData();render();alert('Pesanan berhasil diperbaiki.');
+};
+window.editMyExpense=async id=>{
+  const x=myRepairExpenses.find(v=>Number(v.id)===Number(id));if(!x)return;
+  const category=prompt('Kategori pengeluaran:',x.category||'');if(category===null)return;
+  const amount=Number(prompt('Jumlah pengeluaran:',x.amount));if(!Number.isFinite(amount)||amount<0){alert('Jumlah tidak valid.');return;}
+  const transaction_date=prompt('Tanggal (YYYY-MM-DD):',x.transaction_date||'');if(transaction_date===null)return;
+  const notes=prompt('Catatan:',x.notes||'');if(notes===null)return;
+  const {error}=await sb.from('transactions').update({category:category.trim(),amount,transaction_date,notes:notes.trim()}).eq('id',id).eq('created_by',currentUserId).eq('transaction_type','expense');
+  if(error){alert('Gagal memperbaiki pengeluaran: '+error.message);return;}await loadMyRepairData();alert('Pengeluaran berhasil diperbaiki.');
 };
 
 /* Simpan profil: update baris yang sudah ada, atau insert jika tabel masih kosong. */
@@ -479,6 +539,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));
 
   if(!isOwner() && ['settings'].includes(b.dataset.tab)){alert('Menu ini hanya untuk pemilik hotel.');return;}
+  if(b.dataset.tab==='repair' && isOwner()){alert('Menu ini khusus akun karyawan.');return;}
   const target = $(b.dataset.tab);
   if (!target) {
     alert('Halaman menu tidak ditemukan: ' + b.dataset.tab);
@@ -487,9 +548,8 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
 
   target.classList.add('show');
 
-  if (b.dataset.tab === 'history') {
-    renderHistory();
-  }
+  if (b.dataset.tab === 'history') { renderHistory(); }
+  if (b.dataset.tab === 'repair') { loadMyRepairData(); }
 });
 
 $('txDate').value=dateToday();
