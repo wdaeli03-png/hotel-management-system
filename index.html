@@ -742,25 +742,49 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
 });
 
 
-$('inventoryForm').onsubmit=async e=>{
+// Penyimpanan barang dibuat lebih kuat: selalu menampilkan status dan menangani error.
+$('inventoryForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const button=$('inventoryForm').querySelector('button[type="submit"]');
-  button.disabled=true; $('inventoryMessage').textContent='Menyimpan barang...';
+  const form=$('inventoryForm');
+  const button=form.querySelector('button[type="submit"]');
+  const message=$('inventoryMessage');
+  if(!currentUserId){
+    message.textContent='Sesi login belum terbaca. Silakan logout lalu login kembali.';
+    return;
+  }
+  const name=$('inventoryName').value.trim();
+  const unit=$('inventoryUnit').value.trim();
+  if(!name || !unit || $('inventoryInitial').value==='' || $('inventoryEnding').value===''){
+    message.textContent='Lengkapi Nama Barang, Satuan, Stok Awal, dan Stok Akhir.';
+    return;
+  }
   const payload={
-    item_name:$('inventoryName').value.trim(),
-    unit:$('inventoryUnit').value.trim(),
+    item_name:name,
+    unit,
     initial_stock:Number($('inventoryInitial').value),
     ending_stock:Number($('inventoryEnding').value),
     notes:$('inventoryNotes').value.trim()||null,
     created_by:currentUserId
   };
-  const {error}=await sb.from('hotel_inventory').insert(payload);
-  button.disabled=false;
-  if(error){$('inventoryMessage').textContent='Gagal menyimpan barang: '+error.message;return;}
-  $('inventoryForm').reset();
-  $('inventoryMessage').textContent='Barang berhasil disimpan.';
-  await loadInventory();
-};
+  button.disabled=true;
+  button.textContent='Menyimpan...';
+  message.textContent='Menyimpan barang...';
+  try{
+    const {error}=await sb.from('hotel_inventory').insert(payload);
+    if(error){
+      message.textContent='Gagal menyimpan barang: '+error.message;
+      return;
+    }
+    form.reset();
+    message.textContent='Barang berhasil disimpan.';
+    await loadInventory();
+  }catch(err){
+    message.textContent='Terjadi kesalahan saat menyimpan: '+(err?.message||String(err));
+  }finally{
+    button.disabled=false;
+    button.textContent='Simpan barang';
+  }
+});
 $('refreshInventory').onclick=loadInventory;
 
 $('txDate').value=dateToday();
