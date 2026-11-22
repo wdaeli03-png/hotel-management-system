@@ -373,12 +373,25 @@ $('profileForm').onsubmit=async e=>{
   }
 };
 
+
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));
-  $(b.dataset.tab).classList.add('show');
+
+  const target = $(b.dataset.tab);
+  if (!target) {
+    alert('Halaman menu tidak ditemukan: ' + b.dataset.tab);
+    return;
+  }
+
+  target.classList.add('show');
+
+  if (b.dataset.tab === 'history') {
+    renderHistory();
+  }
 });
+
 $('txDate').value=dateToday();
 $('reportForm').onsubmit=e=>{e.preventDefault();renderReport();};
 function renderReport(){
