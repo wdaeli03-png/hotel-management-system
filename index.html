@@ -38,7 +38,7 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
 <div class="wrap">
   <div id="login" class="login">
     <h2>Hotel Management System</h2>
-    <p class="muted">Login pemilik / admin</p>
+    <p class="muted">Login pemilik / karyawan</p>
     <input id="email" type="email" placeholder="Email" autocomplete="username">
     <input id="password" type="password" placeholder="Password" autocomplete="current-password">
     <button id="loginBtn" style="width:100%">Login</button>
@@ -56,6 +56,7 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       <button data-tab="rooms">Kamar</button>
       <button data-tab="bookings">Booking &amp; Tamu</button>
       <button data-tab="history">Riwayat Tamu</button>
+      <button data-tab="orders">Pesanan Pelanggan</button>
       <button data-tab="finance">Keuangan</button>
       <button data-tab="reports">Laporan</button>
       <button data-tab="settings">Pengaturan</button>
@@ -111,6 +112,20 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
     <div id="historyList"></div>
   </div>
 </div>
+    <div id="orders" class="section">
+      <div class="panel"><h3>Barang Pesanan Pelanggan</h3>
+        <form class="grid" id="orderForm">
+          <input id="orderCustomer" placeholder="Nama pelanggan" required>
+          <input id="orderRoom" placeholder="Nomor kamar (opsional)">
+          <input id="orderItem" placeholder="Nama barang / makanan" required>
+          <input id="orderQty" type="number" min="1" value="1" required>
+          <input id="orderPrice" type="number" min="0" placeholder="Harga satuan" required>
+          <select id="orderStatus"><option value="new">Baru</option><option value="processing">Diproses</option><option value="done">Selesai</option><option value="cancelled">Batal</option></select>
+          <button>Simpan pesanan</button>
+        </form>
+      </div>
+      <div class="panel"><h3>Daftar Pesanan</h3><div id="orderList"></div></div>
+    </div>
     <div id="finance" class="section">
       <div class="panel">
         <h3>Tambah Transaksi</h3>
@@ -163,7 +178,7 @@ const SUPABASE_URL = "https://qzgqzqhuomjnziivttai.supabase.co";
 const SUPABASE_KEY = "sb_publishable_A5x7I70p0avhxr3LKPYWJw_sHb8z2OU";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let rooms = [], bookings = [], tx = [], profile = {};
+let rooms = [], bookings = [], tx = [], profile = {}, orders = [], currentRole = null, currentUserId = null;
 const $ = id => document.getElementById(id);
 const money = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const dateToday = () => new Date().toISOString().slice(0,10);
@@ -186,13 +201,24 @@ sb.auth.getSession().then(({data,error}) => {
 });
 
 async function start(){
-  $('login').classList.add('hidden');
-  $('app').classList.remove('hidden');
-  await loadAll();
+  const {data:{user}, error:userError} = await sb.auth.getUser();
+  if(userError || !user){ loginMessage('Sesi login tidak dapat dibaca. Silakan login kembali.'); return; }
+  currentUserId = user.id;
+  const roleResult = await sb.from('hotel_user_roles').select('role').eq('user_id', user.id).maybeSingle();
+  if(roleResult.error){ loginMessage('Tabel hak akses belum disiapkan. Jalankan SQL persiapan. Detail: '+roleResult.error.message); await sb.auth.signOut(); return; }
+  currentRole = roleResult.data?.role || null;
+  if(!['owner','employee'].includes(currentRole)){ loginMessage('Akun ini belum diberi hak akses. Hubungi pemilik hotel.'); await sb.auth.signOut(); return; }
+  $('login').classList.add('hidden'); $('app').classList.remove('hidden'); applyRoleAccess(); await loadAll();
+}
+function isOwner(){ return currentRole === 'owner'; }
+function applyRoleAccess(){
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('hidden',!isOwner() && ['finance','settings'].includes(b.dataset.tab)));
+  const sub=document.querySelector('.head .muted'); if(sub) sub.textContent=isOwner()?'Dashboard pengelolaan hotel · Pemilik':'Dashboard operasional · Karyawan';
 }
 async function loadAll(){
-  await Promise.all([loadRooms(),loadBookings(),loadTx(),loadProfile()]);
-  render();
+  const jobs=[loadRooms(),loadBookings(),loadOrders()];
+  if(isOwner()) jobs.push(loadTx(),loadProfile());
+  await Promise.all(jobs); render();
 }
 async function loadRooms(){
   const {data,error} = await sb.from('rooms').select('*').order('room_number');
@@ -203,6 +229,11 @@ async function loadBookings(){
   const {data,error} = await sb.from('bookings').select('*').order('created_at',{ascending:false});
   if(error){alert('Gagal memuat booking: '+error.message);bookings=[];return;}
   bookings=data||[];
+}
+async function loadOrders(){
+  const {data,error}=await sb.from('customer_orders').select('*').order('created_at',{ascending:false});
+  if(error){alert('Gagal memuat pesanan pelanggan: '+error.message);orders=[];return;}
+  orders=data||[];
 }
 async function loadTx(){
   const {data,error} = await sb.from('transactions').select('*').order('transaction_date',{ascending:false});
@@ -219,21 +250,24 @@ async function loadProfile(){
   $('hotelPhone').value=profile.phone||'';
 }
 function render(){
-  renderDash();renderRooms();renderBookings();renderTx();renderReport();fillRoomSelect();renderHistory();
+  renderDash();renderRooms();renderBookings();renderOrders();renderTx();renderReport();fillRoomSelect();renderHistory();
 }
 function renderDash(){
-  const today=dateToday();
-  const income=tx.filter(t=>t.transaction_type==='income'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0);
-  const expense=tx.filter(t=>t.transaction_type==='expense'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0);
-  const occupied=bookings.filter(b=>b.status==='checked_in').length;
-  const available=rooms.filter(r=>r.status==='available').length;
-  const maint=rooms.filter(r=>r.status==='maintenance').length;
-  $('dashCards').innerHTML=[
-    ['Jumlah kamar',rooms.length],['Check-in',occupied],['Tersedia',available],
-    ['Perbaikan',maint],['Pemasukan hari ini',money(income)],
-    ['Pengeluaran hari ini',money(expense)],['Selisih hari ini',money(income-expense)]
-  ].map(x=>`<div class="card">${x[0]}<strong>${x[1]}</strong></div>`).join('');
-  $('dashSummary').textContent=`Total booking tercatat: ${bookings.length} | Total transaksi: ${tx.length}`;
+  const available=rooms.filter(r=>roomStatusInfo(r).key==='available').length;
+  const occupied=rooms.filter(r=>roomStatusInfo(r).key==='occupied').length;
+  const reserved=rooms.filter(r=>roomStatusInfo(r).key==='booked').length;
+  const maint=rooms.filter(r=>roomStatusInfo(r).key==='maintenance').length;
+  const today=dateToday(), todayBookings=bookings.filter(b=>b.check_in===today).length;
+  const activeGuests=bookings.filter(b=>b.status==='checked_in').length;
+  if(isOwner()){
+    const income=tx.filter(t=>t.transaction_type==='income'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0);
+    const expense=tx.filter(t=>t.transaction_type==='expense'&&t.transaction_date===today).reduce((a,t)=>a+Number(t.amount),0);
+    $('dashCards').innerHTML=[['Jumlah kamar',rooms.length],['Kamar tersedia',available],['Kamar terisi',occupied],['Dipesan',reserved],['Perbaikan',maint],['Booking check-in hari ini',todayBookings],['Tamu menginap',activeGuests],['Pemasukan hari ini',money(income)],['Pengeluaran hari ini',money(expense)],['Selisih hari ini',money(income-expense)]].map(x=>`<div class="card">${x[0]}<strong>${x[1]}</strong></div>`).join('');
+    $('dashSummary').textContent=`Total booking: ${bookings.length} | Transaksi: ${tx.length} | Pesanan: ${orders.length}`;
+  }else{
+    $('dashCards').innerHTML=[['Jumlah kamar',rooms.length],['Kamar tersedia',available],['Kamar terisi',occupied],['Dipesan',reserved],['Perbaikan',maint],['Booking hari ini',todayBookings],['Tamu menginap',activeGuests],['Pesanan pelanggan',orders.length]].map(x=>`<div class="card">${x[0]}<strong>${x[1]}</strong></div>`).join('');
+    $('dashSummary').textContent=`Total booking: ${bookings.length} | Pesanan pelanggan: ${orders.length}`;
+  }
 }
 function table(headers,rows){
   if(!rows.length)return '<p class="muted">Belum ada data.</p>';
@@ -254,7 +288,7 @@ function renderRooms(){
     const st=roomStatusInfo(r);
     return [
       esc(r.room_number),esc(r.room_type),money(r.price),esc(st.label),esc(r.notes||''),
-      `<button class="danger" onclick="delRoom(${Number(r.id)})">Hapus</button>`
+      isOwner() ? `<button class="danger" onclick="delRoom(${Number(r.id)})">Hapus</button>` : ''
     ];
   }));
 }
@@ -269,7 +303,7 @@ function renderBookings(){
     let action='';
     if(b.status==='booked') action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_in')">Check-in</button>`;
     else if(b.status==='checked_in') action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_out')">Check-out</button>`;
-    action+=` <button class="danger" onclick="delBooking(${Number(b.id)})">Hapus</button>`;
+    if(isOwner()) action+=` <button class="danger" onclick="delBooking(${Number(b.id)})">Hapus</button>`;
     return [
       esc(b.guest_name),esc(b.phone||''),esc(rooms.find(r=>String(r.id)===String(b.room_id))?.room_number||b.room_id),
       esc(b.check_in),esc(b.check_out),money(b.total_price),money(b.deposit),esc(bookingStatusLabel(b.status)),action
@@ -292,6 +326,20 @@ function renderTx(){
     `<button class="danger" onclick="delTx(${Number(t.id)})">Hapus</button>`
   ]));
 }
+function orderStatusLabel(s){return ({new:'Baru',processing:'Diproses',done:'Selesai',cancelled:'Batal'})[s]||s;}
+function renderOrders(){
+  $('orderList').innerHTML=table(['Pelanggan','Kamar','Pesanan','Jumlah','Harga satuan','Total','Status','Tindakan'],orders.map(o=>[
+    esc(o.customer_name),esc(o.room_number||'-'),esc(o.item_name),Number(o.quantity),money(o.unit_price),money(o.total_price),esc(orderStatusLabel(o.status)),
+    `<button class="secondary" onclick="updateOrderStatus(${Number(o.id)},'processing')">Proses</button> <button class="secondary" onclick="updateOrderStatus(${Number(o.id)},'done')">Selesai</button>`
+  ]));
+}
+window.updateOrderStatus=async(id,status)=>{const {error}=await sb.from('customer_orders').update({status}).eq('id',id);if(error){alert(error.message);return;}await loadOrders();render();};
+$('orderForm').onsubmit=async e=>{
+  e.preventDefault();const quantity=Number($('orderQty').value),unitPrice=Number($('orderPrice').value);
+  const payload={customer_name:$('orderCustomer').value.trim(),room_number:$('orderRoom').value.trim()||null,item_name:$('orderItem').value.trim(),quantity,unit_price:unitPrice,total_price:quantity*unitPrice,status:$('orderStatus').value,created_by:currentUserId};
+  const {error}=await sb.from('customer_orders').insert(payload);if(error){alert('Gagal menyimpan pesanan: '+error.message);return;}
+  e.target.reset();$('orderQty').value=1;await loadOrders();render();
+};
 $('roomForm').onsubmit=async e=>{
   e.preventDefault();
   const payload={room_number:$('roomNo').value.trim(),room_type:$('roomType').value.trim(),
@@ -379,6 +427,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
   b.classList.add('active');
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));
 
+  if(!isOwner() && ['finance','settings'].includes(b.dataset.tab)){alert('Menu ini hanya untuk pemilik hotel.');return;}
   const target = $(b.dataset.tab);
   if (!target) {
     alert('Halaman menu tidak ditemukan: ' + b.dataset.tab);
@@ -395,6 +444,12 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
 $('txDate').value=dateToday();
 $('reportForm').onsubmit=e=>{e.preventDefault();renderReport();};
 function renderReport(){
+  if(!isOwner()){
+    $('reportForm').classList.add('hidden'); $('csvBtn').classList.add('hidden');
+    $('reportResult').innerHTML=`<div class="cards"><div class="card">Jumlah kamar<strong>${rooms.length}</strong></div><div class="card">Tersedia<strong>${rooms.filter(r=>roomStatusInfo(r).key==='available').length}</strong></div><div class="card">Terisi<strong>${rooms.filter(r=>roomStatusInfo(r).key==='occupied').length}</strong></div><div class="card">Check-in<strong>${bookings.filter(b=>b.status==='checked_in').length}</strong></div><div class="card">Check-out<strong>${bookings.filter(b=>b.status==='checked_out').length}</strong></div><div class="card">Pesanan baru<strong>${orders.filter(o=>o.status==='new').length}</strong></div></div>`;
+    return;
+  }
+  $('reportForm').classList.remove('hidden'); $('csvBtn').classList.remove('hidden');
   const from=$('reportFrom').value||'0000-01-01',to=$('reportTo').value||'9999-12-31';
   const filtered=tx.filter(t=>t.transaction_date>=from&&t.transaction_date<=to);
   const inc=filtered.filter(t=>t.transaction_type==='income').reduce((a,t)=>a+Number(t.amount),0);
@@ -413,32 +468,14 @@ $('csvBtn').onclick=()=>{
 };
   
 window.renderHistory = function () {
-  const container = document.getElementById('historyList');
-  if (!container) return;
-
-  const keyword = (
-    document.getElementById('historySearch')?.value || ''
-  ).toLowerCase();
-
-  const history = bookings.filter(b =>
-    b.status === 'checked_out' &&
-    JSON.stringify(b).toLowerCase().includes(keyword)
-  );
-
-  if (!history.length) {
-    container.innerHTML = '<p>Belum ada riwayat tamu.</p>';
-    return;
-  }
-
-  container.innerHTML = history.map(b => `
-    <div class="panel" style="margin-top:12px;padding:12px">
-      <h4>${b.guest_name || b.name || 'Tamu'}</h4>
-      <p>Nomor kamar: ${b.room_number || b.room_id || '-'}</p>
-      <p>Check-in: ${b.check_in || '-'}</p>
-      <p>Check-out: ${b.check_out || '-'}</p>
-      <p>Status: Check-out</p>
-    </div>
-  `).join('');
+  const container=$('historyList'); if(!container)return;
+  const keyword=($('historySearch')?.value||'').toLowerCase();
+  const history=bookings.filter(b=>b.status==='checked_out'&&JSON.stringify(b).toLowerCase().includes(keyword));
+  if(!history.length){container.innerHTML='<p class="muted">Belum ada riwayat tamu.</p>';return;}
+  container.innerHTML=history.map(b=>{
+    const room=rooms.find(r=>String(r.id)===String(b.room_id));
+    return `<div class="panel" style="margin-top:12px;padding:12px"><h4>${esc(b.guest_name||'Tamu')}</h4><p>Nomor kamar: ${esc(room?.room_number||b.room_number||'-')}</p><p>Check-in: ${esc(b.check_in||'-')}</p><p>Check-out: ${esc(b.check_out||'-')}</p><p>Total pembayaran: ${money(b.total_price)}</p><p>Status: Check-out</p></div>`;
+  }).join('');
 };
 
 </script>
