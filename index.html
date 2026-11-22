@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hotel Management System</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#1e293b}
+header{background:#0f766e;color:white;padding:20px}
+header h2{margin:0}
+nav{display:flex;flex-wrap:wrap;background:#134e4a}
+nav button{background:none;color:white;border:0;padding:14px;cursor:pointer}
+nav button:hover{background:#0f766e}
+main{padding:20px;max-width:1200px;margin:auto}
+.card{background:white;border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 2px 8px #0001}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{background:white;border-radius:12px;padding:20px;box-shadow:0 2px 8px #0001}
+.stat strong{display:block;font-size:25px;color:#0f766e;margin-top:8px}
+input,select,textarea{padding:10px;border:1px solid #cbd5e1;border-radius:7px;margin:5px;max-width:100%}
+button.action{background:#0f766e;color:white;border:0;padding:10px 15px;border-radius:7px;cursor:pointer;margin:4px}
+button.danger{background:#dc2626}
+table{width:100%;border-collapse:collapse;overflow:auto}
+th,td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:14px}
+th{background:#f8fafc}
+.tablewrap{overflow-x:auto}
+h3{color:#0f766e}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+<h2 id="hotelTitle">HOTEL MANAGEMENT SYSTEM</h2>
+<p>Pengelolaan hotel sederhana</p>
+</header>
+<nav>
+<button onclick="show('dashboard')">Dashboard</button>
+<button onclick="show('rooms')">Data Kamar</button>
+<button onclick="show('booking')">Booking & Tamu</button>
+<button onclick="show('finance')">Keuangan</button>
+<button onclick="show('reports')">Laporan</button>
+<button onclick="show('settings')">Pengaturan</button>
+</nav>
+<main id="app"></main>
+<script>
+const get=(k,d=[])=>JSON.parse(localStorage.getItem(k)||JSON.stringify(d));
+const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+let rooms=get('rooms'), bookings=get('bookings'), transactions=get('transactions');
+let hotel=get('hotel',{name:'HOTEL MANAGEMENT SYSTEM'});
+const rupiah=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
+function show(page){
+let a=document.getElementById('app');
+if(page==='dashboard'){
+let occupied=rooms.filter(r=>r.status==='Terisi').length;
+let today=new Date().toISOString().slice(0,10);
+let income=transactions.filter(t=>t.type==='Masuk'&&t.date===today).reduce((s,t)=>s+ +t.amount,0);
+let expense=transactions.filter(t=>t.type==='Keluar'&&t.date===today).reduce((s,t)=>s+ +t.amount,0);
+a.innerHTML=`<h3>Dashboard</h3><div class="stats">
+<div class="stat">Total Kamar<strong>${rooms.length}</strong></div>
+<div class="stat">Terisi<strong>${occupied}</strong></div>
+<div class="stat">Tersedia<strong>${rooms.filter(r=>r.status==='Tersedia').length}</strong></div>
+<div class="stat">Perawatan<strong>${rooms.filter(r=>r.status==='Perawatan').length}</strong></div>
+<div class="stat">Pendapatan Hari Ini<strong>${rupiah(income)}</strong></div>
+<div class="stat">Pengeluaran Hari Ini<strong>${rupiah(expense)}</strong></div>
+<div class="stat">Laba Hari Ini<strong>${rupiah(income-expense)}</strong></div>
+</div><div class="card"><h3>Ringkasan Kamar</h3>${roomTable()}</div>`;
+}
+if(page==='rooms'){
+a.innerHTML=`<h3>Data Kamar</h3><div class="card">
+<input id="rn" placeholder="Nomor kamar">
+<input id="rt" placeholder="Tipe kamar">
+<input id="rp" type="number" placeholder="Harga per malam">
+<input id="rc" type="number" placeholder="Kapasitas">
+<button class="action" onclick="addRoom()">Tambah Kamar</button></div>
+<div class="card tablewrap">${roomTable()}</div>`;
+}
+if(page==='booking'){
+a.innerHTML=`<h3>Booking & Tamu</h3><div class="card">
+<input id="gn" placeholder="Nama tamu">
+<input id="gp" placeholder="Nomor HP">
+<select id="gr">${rooms.map(r=>`<option value="${r.number}">${r.number} - ${r.type}</option>`).join('')}</select>
+<label>Check-in</label><input id="gi" type="date">
+<label>Check-out</label><input id="go" type="date">
+<input id="gd" type="number" placeholder="Deposit / pembayaran awal">
+<button class="action" onclick="addBooking()">Simpan Booking</button></div>
+<div class="card tablewrap">${bookingTable()}</div>`;
+}
+if(page==='finance'){
+a.innerHTML=`<h3>Keuangan</h3><div class="card">
+<select id="ft"><option>Masuk</option><option>Keluar</option></select>
+<input id="fa" type="number" placeholder="Jumlah Rupiah">
+<input id="fc" placeholder="Kategori (kamar, listrik, dll)">
+<input id="fd" type="date" value="${new Date().toISOString().slice(0,10)}">
+<select id="fm"><option>Tunai</option><option>Transfer</option><option>QRIS</option></select>
+<input id="fn" placeholder="Catatan">
+<button class="action" onclick="addFinance()">Simpan Transaksi</button></div>
+<div class="card tablewrap">${financeTable()}</div>`;
+}
+if(page==='reports'){
+let income=transactions.filter(t=>t.type==='Masuk').reduce((s,t)=>s+ +t.amount,0);
+let expense=transactions.filter(t=>t.type==='Keluar').reduce((s,t)=>s+ +t.amount,0);
+a.innerHTML=`<h3>Laporan Keuangan</h3><div class="stats">
+<div class="stat">Total Pendapatan<strong>${rupiah(income)}</strong></div>
+<div class="stat">Total Pengeluaran<strong>${rupiah(expense)}</strong></div>
+<div class="stat">Laba<strong>${rupiah(income-expense)}</strong></div>
+</div><div class="card tablewrap">${financeTable()}</div>
+<button class="action" onclick="exportCSV()">Unduh Laporan CSV</button>`;
+}
+if(page==='settings'){
+a.innerHTML=`<h3>Pengaturan</h3><div class="card">
+<input id="hn" value="${hotel.name}" placeholder="Nama hotel">
+<button class="action" onclick="saveHotel()">Simpan Nama Hotel</button>
+</div><div class="card"><p>Data aplikasi disimpan di browser perangkat ini.</p></div>`;
+}
+}
+function roomTable(){
+return `<table><tr><th>Kamar</th><th>Tipe</th><th>Harga</th><th>Kapasitas</th><th>Status</th><th>Aksi</th></tr>
+${rooms.map((r,i)=>`<tr><td>${r.number}</td><td>${r.type}</td><td>${rupiah(r.price)}</td><td>${r.capacity}</td><td>${r.status}</td><td><button class="action" onclick="toggleRoom(${i})">Status</button><button class="action danger" onclick="delRoom(${i})">Hapus</button></td></tr>`).join('')}</table>`;
+}
+function bookingTable(){
+return `<table><tr><th>Tamu</th><th>HP</th><th>Kamar</th><th>Check-in</th><th>Check-out</th><th>Total</th><th>Deposit</th><th>Status</th><th>Aksi</th></tr>
+${bookings.map((b,i)=>`<tr><td>${b.name}</td><td>${b.phone}</td><td>${b.room}</td><td>${b.in}</td><td>${b.out}</td><td>${rupiah(b.total)}</td><td>${rupiah(b.deposit)}</td><td>${b.status}</td><td><button class="action" onclick="checkin(${i})">Check-in</button><button class="action" onclick="checkout(${i})">Check-out</button></td></tr>`).join('')}</table>`;
+}
+function financeTable(){
+return `<table><tr><th>Tanggal</th><th>Jenis</th><th>Kategori</th><th>Jumlah</th><th>Metode</th><th>Catatan</th></tr>
+${transactions.map(t=>`<tr><td>${t.date}</td><td>${t.type}</td><td>${t.category}</td><td>${rupiah(t.amount)}</td><td>${t.method}</td><td>${t.note}</td></tr>`).join('')}</table>`;
+}
+function addRoom(){
+let n=rn.value.trim();if(!n||!rt.value||!rp.value)return alert('Lengkapi data kamar');
+if(rooms.some(r=>r.number===n))return alert('Nomor kamar sudah ada');
+rooms.push({number:n,type:rt.value,price:+rp.value,capacity:+rc.value||1,status:'Tersedia'});
+save('rooms',rooms);show('rooms');
+}
+function delRoom(i){if(confirm('Hapus kamar?')){rooms.splice(i,1);save('rooms',rooms);show('rooms')}}
+function toggleRoom(i){
+let s=['Tersedia','Perawatan','Cleaning'];
+rooms[i].status=s[(s.indexOf(rooms[i].status)+1)%s.length];
+save('rooms',rooms);show('rooms');
+}
+function addBooking(){
+let room=gr.value, start=gi.value,end=go.value;
+if(!gn.value||!start||!end||end<=start)return alert('Lengkapi data tamu dan tanggal');
+if(bookings.some(b=>b.room===room&&b.status!=='Check-out'&&start<b.out&&end>b.in))return alert('Kamar sudah dipesan pada tanggal tersebut');
+let r=rooms.find(x=>x.number===room),n=Math.ceil((new Date(end)-new Date(start))/86400000);
+let total=r.price*n,deposit=+gd.value||0;
+bookings.push({name:gn.value,phone:gp.value,room,in:start,out:end,total,deposit,status:'Booking'});
+if(deposit>0)transactions.push({type:'Masuk',amount:deposit,category:'Deposit '+gn.value,date:start,method:'Tunai',note:'Deposit booking'});
+save('bookings',bookings);save('transactions',transactions);
+show('booking');
+}
+function checkin(i){
+bookings[i].status='Check-in';
+let r=rooms.find(x=>x.number===bookings[i].room);if(r)r.status='Terisi';
+save('bookings',bookings);save('rooms',rooms);show('booking');
+}
+function checkout(i){
+let b=bookings[i],r=rooms.find(x=>x.number===b.room);
+let remaining=b.total-b.deposit;
+if(remaining>0&&confirm('Catat pelunasan '+rupiah(remaining)+'?')){
+transactions.push({type:'Masuk',amount:remaining,category:'Pelunasan '+b.name,date:new Date().toISOString().slice(0,10),method:'Tunai',note:'Pelunasan kamar '+b.room});
+}
+b.status='Check-out';if(r)r.status='Tersedia';
+save('bookings',bookings);save('rooms',rooms);save('transactions',transactions);show('booking');
+}
+function addFinance(){
+if(!fa.value||!fc.value)return alert('Lengkapi transaksi');
+transactions.push({type:ft.value,amount:+fa.value,category:fc.value,date:fd.value,method:fm.value,note:fn.value});
+save('transactions',transactions);show('finance');
+}
+function saveHotel(){hotel.name=hn.value;save('hotel',hotel);document.getElementById('hotelTitle').textContent=hotel.name;alert('Nama hotel disimpan')}
+function exportCSV(){
+let rows=[['Tanggal','Jenis','Kategori','Jumlah','Metode','Catatan'],...transactions.map(t=>[t.date,t.type,t.category,t.amount,t.method,t.note])];
+let csv=rows.map(r=>r.map(x=>'"'+String(x||'').replaceAll('"','""')+'"').join(',')).join('\n');
+let blob=new Blob(['\ufeff'+csv],{type:'text/csv'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+link.href=url;link.download='laporan-hotel.csv';link.click();URL.revokeObjectURL(url);
+}
+document.getElementById('hotelTitle').textContent=hotel.name;
+show('dashboard');
+</script>
+</body>
+</html>
