@@ -166,7 +166,7 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
         <p id="profileMsg" class="muted"></p>
       </div>
     </div>
-    <p class="muted">Data tersimpan online di Supabase. Gunakan akun login yang telah dibuat.</p>
+    <p class="muted">Data tersimpan online di Supabase. Pengingat WhatsApp dapat dibuka melalui tombol WA pengingat; pengiriman otomatis terjadwal memerlukan layanan WhatsApp Business dan server terjadwal.</p>
   </div>
 </div>
 
@@ -302,7 +302,10 @@ function renderBookings(){
   $('bookingList').innerHTML=table(['Tamu','Telepon','Kamar','Check-in','Check-out','Total','Deposit','Status','Tindakan'],bookings.map(b=>{
     let action='';
     if(b.status==='booked') action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_in')">Check-in</button>`;
-    else if(b.status==='checked_in') action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_out')">Check-out</button>`;
+    else if(b.status==='checked_in') {
+      action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_out')">Check-out</button>`;
+      if(b.phone) action+=` <button class="secondary" onclick="checkoutReminder(${Number(b.id)} )">WA pengingat</button>`;
+    }
     if(isOwner()) action+=` <button class="danger" onclick="delBooking(${Number(b.id)})">Hapus</button>`;
     return [
       esc(b.guest_name),esc(b.phone||''),esc(rooms.find(r=>String(r.id)===String(b.room_id))?.room_number||b.room_id),
@@ -310,6 +313,16 @@ function renderBookings(){
     ];
   }));
 }
+
+window.checkoutReminder=function(id){
+  const b=bookings.find(x=>Number(x.id)===Number(id));
+  if(!b||!b.phone){alert('Nomor WhatsApp tamu belum tersedia.');return;}
+  let phone=String(b.phone).replace(/[^0-9]/g,'');
+  if(phone.startsWith('0')) phone='62'+phone.slice(1);
+  const msg=`Halo ${b.guest_name||'Bapak/Ibu'}, kami mengingatkan bahwa waktu check-out hotel adalah ${b.check_out||''}. Mohon bersiap untuk check-out. Terima kasih.`;
+  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(msg),'_blank');
+};
+
 window.updateBookingStatus=async (id,status)=>{
   const label=bookingStatusLabel(status);
   if(!confirm(`Ubah status booking menjadi ${label}?`)) return;
