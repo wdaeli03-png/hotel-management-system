@@ -60,8 +60,10 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       <button data-tab="bookings">Booking &amp; Tamu</button>
       <button data-tab="history">Riwayat Tamu</button>
       <button data-tab="orders">Pesanan Pelanggan</button>
+      <button data-tab="inventory">Barang</button>
       <button data-tab="finance">Keuangan</button>
       <button data-tab="reports">Laporan</button>
+      <button data-tab="activity" id="activityNav" class="hidden">Riwayat Aktivitas</button>
       <button data-tab="repair" id="repairNav" class="hidden">Perbaiki Data</button>
       <button data-tab="settings">Pengaturan</button>
     </div>
@@ -130,6 +132,26 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       </div>
       <div class="panel"><h3>Daftar Pesanan</h3><div id="orderList"></div></div>
     </div>
+    <div id="inventory" class="section">
+      <div class="panel">
+        <h3>Entri Barang dan Stok</h3>
+        <p class="muted">Karyawan dapat mencatat stok awal dan stok akhir barang. Pemilik dapat melihat seluruh entri.</p>
+        <form class="grid" id="inventoryForm">
+          <input id="inventoryName" placeholder="Nama barang" required>
+          <input id="inventoryUnit" placeholder="Satuan (pcs, botol, kg, dll.)" required>
+          <input id="inventoryInitial" type="number" min="0" step="0.01" placeholder="Stok awal" required>
+          <input id="inventoryEnding" type="number" min="0" step="0.01" placeholder="Stok akhir" required>
+          <input id="inventoryNotes" placeholder="Catatan (opsional)">
+          <button type="submit">Simpan barang</button>
+        </form>
+        <p id="inventoryMessage" class="muted"></p>
+      </div>
+      <div class="panel">
+        <div class="head"><h3>Daftar Barang dan Stok</h3><button type="button" class="secondary" id="refreshInventory">Muat Ulang</button></div>
+        <div id="inventoryList"></div>
+      </div>
+    </div>
+
     <div id="finance" class="section">
       <div class="panel">
         <h3 id="financeHeading">Tambah Transaksi</h3>
@@ -162,6 +184,18 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
         <p class="report-note" id="reportPeriodLabel">Pilih periode laporan.</p>
         <div id="reportResult"></div>
         <button id="csvBtn" class="secondary">Unduh CSV</button>
+      </div>
+    </div>
+
+    <div id="activity" class="section">
+      <div class="panel">
+        <div class="head">
+          <h3>Riwayat Aktivitas Karyawan</h3>
+          <button type="button" class="secondary" id="refreshActivity">Muat Ulang</button>
+        </div>
+        <p class="muted">Catatan penambahan, perubahan, dan penghapusan data booking, pesanan, serta transaksi.</p>
+        <div id="activityMessage" class="muted"></div>
+        <div id="activityList"></div>
       </div>
     </div>
 
@@ -200,7 +234,7 @@ const SUPABASE_URL = "https://qzgqzqhuomjnziivttai.supabase.co";
 const SUPABASE_KEY = "sb_publishable_A5x7I70p0avhxr3LKPYWJw_sHb8z2OU";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let rooms = [], bookings = [], tx = [], profile = {}, orders = [], currentRole = null, currentUserId = null;
+let rooms = [], bookings = [], tx = [], profile = {}, orders = [], inventoryItems = [], currentRole = null, currentUserId = null;
 const $ = id => document.getElementById(id);
 const money = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const dateToday = () => new Date().toISOString().slice(0,10);
@@ -236,6 +270,7 @@ function isOwner(){ return currentRole === 'owner'; }
 function applyRoleAccess(){
   document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('hidden',!isOwner() && ['settings'].includes(b.dataset.tab)));
   $('repairNav').classList.toggle('hidden',isOwner());
+  $('activityNav').classList.toggle('hidden',!isOwner());
   const sub=document.querySelector('.head .muted'); if(sub) sub.textContent=isOwner()?'Dashboard pengelolaan hotel · Pemilik':'Dashboard operasional · Karyawan';
   $('txType').value=isOwner()?'income':'expense';
   $('txType').classList.toggle('hidden',!isOwner());
@@ -244,7 +279,7 @@ function applyRoleAccess(){
   $('txListPanel').classList.toggle('hidden',!isOwner());
 }
 async function loadAll(){
-  const jobs=[loadRooms(),loadBookings(),loadOrders()];
+  const jobs=[loadRooms(),loadBookings(),loadOrders(),loadInventory()];
   if(isOwner()) jobs.push(loadTx(),loadProfile());
   await Promise.all(jobs);
   if(isOwner()) await syncCompletedOrderIncome();
@@ -265,6 +300,21 @@ async function loadOrders(){
   if(error){alert('Gagal memuat pesanan pelanggan: '+error.message);orders=[];return;}
   orders=data||[];
 }
+async function loadInventory(){
+  const {data,error}=await sb.from('hotel_inventory').select('*').order('created_at',{ascending:false});
+  if(error){$('inventoryMessage').textContent='Gagal memuat barang: '+error.message;return;}
+  inventoryItems=data||[];
+  renderInventory();
+}
+function renderInventory(){
+  const el=$('inventoryList'); if(!el)return;
+  if(!inventoryItems.length){el.innerHTML='<p class="muted">Belum ada barang yang dientri.</p>';return;}
+  el.innerHTML=table(['Nama Barang','Satuan','Stok Awal','Stok Akhir','Catatan','Tanggal Entri'],inventoryItems.map(x=>[
+    esc(x.item_name),esc(x.unit),esc(x.initial_stock),esc(x.ending_stock),esc(x.notes||'-'),
+    x.created_at?new Date(x.created_at).toLocaleString('id-ID'):'-'
+  ]));
+}
+
 async function loadTx(){
   const {data,error} = await sb.from('transactions').select('*').order('transaction_date',{ascending:false});
   if(error){alert('Gagal memuat transaksi: '+error.message);tx=[];return;}
@@ -494,6 +544,58 @@ window.editMyExpense=async id=>{
   if(error){alert('Gagal memperbaiki pengeluaran: '+error.message);return;}await loadMyRepairData();alert('Pengeluaran berhasil diperbaiki.');
 };
 
+/* Riwayat aktivitas hanya dimuat oleh akun pemilik. */
+function activityActionLabel(action){
+  return ({INSERT:'Tambah data',UPDATE:'Perbaiki data',DELETE:'Hapus data'})[action] || action;
+}
+function activityTableLabel(name){
+  return ({bookings:'Booking & Tamu',customer_orders:'Pesanan Pelanggan',transactions:'Transaksi Keuangan'})[name] || name;
+}
+function activityChanges(oldData,newData){
+  const before=oldData||{}, after=newData||{};
+  const keys=[...new Set([...Object.keys(before),...Object.keys(after)])]
+    .filter(k=>!['id','created_at','updated_at','created_by'].includes(k));
+  const changed=keys.filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]));
+  if(!changed.length) return 'Tidak ada rincian perubahan.';
+  return changed.map(k=>{
+    const a=before[k]===undefined?'—':JSON.stringify(before[k]);
+    const b=after[k]===undefined?'—':JSON.stringify(after[k]);
+    return `<div><strong>${esc(k)}</strong>: ${esc(a)} → ${esc(b)}</div>`;
+  }).join('');
+}
+async function loadActivityLogs(){
+  if(!isOwner()) return;
+  $('activityMessage').textContent='Memuat riwayat aktivitas...';
+  const {data,error}=await sb.from('hotel_activity_logs')
+    .select('id,table_name,record_id,action,actor_email,old_data,new_data,created_at')
+    .order('created_at',{ascending:false}).limit(200);
+  if(error){
+    $('activityMessage').textContent='Gagal memuat riwayat: '+error.message;
+    $('activityList').innerHTML='';
+    return;
+  }
+  $('activityMessage').textContent=`Menampilkan ${data.length} aktivitas terakhir.`;
+  if(!data.length){
+    $('activityList').innerHTML='<p class="muted">Belum ada aktivitas yang tercatat.</p>';
+    return;
+  }
+  $('activityList').innerHTML=data.map(item=>{
+    const time=item.created_at ? new Date(item.created_at).toLocaleString('id-ID') : '-';
+    const details=item.action==='UPDATE'
+      ? activityChanges(item.old_data,item.new_data)
+      : item.action==='INSERT'
+        ? activityChanges({},item.new_data)
+        : activityChanges(item.old_data,{});
+    return `<div class="panel" style="margin-top:10px;padding:12px">
+      <strong>${esc(activityActionLabel(item.action))} · ${esc(activityTableLabel(item.table_name))}</strong>
+      <p class="muted">Pelaku: ${esc(item.actor_email||'Akun tidak teridentifikasi')} · ID data: ${esc(item.record_id||'-')}</p>
+      <p class="muted">Waktu: ${esc(time)}</p>
+      <div>${details}</div>
+    </div>`;
+  }).join('');
+}
+$('refreshActivity').onclick=loadActivityLogs;
+
 /* Simpan profil: update baris yang sudah ada, atau insert jika tabel masih kosong. */
 $('profileForm').onsubmit=async e=>{
   e.preventDefault();
@@ -546,7 +648,31 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
 
   if (b.dataset.tab === 'history') { renderHistory(); }
   if (b.dataset.tab === 'repair') { loadMyRepairData(); }
+  if (b.dataset.tab === 'activity') { loadActivityLogs(); }
+  if (b.dataset.tab === 'inventory') { loadInventory(); }
 });
+
+
+$('inventoryForm').onsubmit=async e=>{
+  e.preventDefault();
+  const button=$('inventoryForm').querySelector('button[type="submit"]');
+  button.disabled=true; $('inventoryMessage').textContent='Menyimpan barang...';
+  const payload={
+    item_name:$('inventoryName').value.trim(),
+    unit:$('inventoryUnit').value.trim(),
+    initial_stock:Number($('inventoryInitial').value),
+    ending_stock:Number($('inventoryEnding').value),
+    notes:$('inventoryNotes').value.trim()||null,
+    created_by:currentUserId
+  };
+  const {error}=await sb.from('hotel_inventory').insert(payload);
+  button.disabled=false;
+  if(error){$('inventoryMessage').textContent='Gagal menyimpan barang: '+error.message;return;}
+  $('inventoryForm').reset();
+  $('inventoryMessage').textContent='Barang berhasil disimpan.';
+  await loadInventory();
+};
+$('refreshInventory').onclick=loadInventory;
 
 $('txDate').value=dateToday();
 $('reportForm').onsubmit=e=>{e.preventDefault();renderReport();};
