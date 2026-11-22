@@ -231,22 +231,51 @@ function table(headers,rows){
   return '<table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+row.map(c=>'<td>'+c+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
 }
+function roomStatusInfo(room){
+  if(room.status==='maintenance') return {key:'maintenance',label:'Perbaikan'};
+  const related=bookings.filter(b=>String(b.room_id)===String(room.id));
+  if(related.some(b=>b.status==='checked_in')) return {key:'occupied',label:'Terisi'};
+  const today=dateToday();
+  if(related.some(b=>b.status==='booked' && b.check_in<=today && b.check_out>today))
+    return {key:'booked',label:'Dipesan'};
+  return {key:'available',label:'Tersedia'};
+}
 function renderRooms(){
-  $('roomList').innerHTML=table(['Nomor','Tipe','Harga','Status','Catatan',''],rooms.map(r=>[
-    esc(r.room_number),esc(r.room_type),money(r.price),esc(r.status),esc(r.notes||''),
-    `<button class="danger" onclick="delRoom(${Number(r.id)})">Hapus</button>`
-  ]));
+  $('roomList').innerHTML=table(['Nomor','Tipe','Harga','Status','Catatan',''],rooms.map(r=>{
+    const st=roomStatusInfo(r);
+    return [
+      esc(r.room_number),esc(r.room_type),money(r.price),esc(st.label),esc(r.notes||''),
+      `<button class="danger" onclick="delRoom(${Number(r.id)})">Hapus</button>`
+    ];
+  }));
 }
 function fillRoomSelect(){
   $('bookRoom').innerHTML=rooms.map(r=>`<option value="${esc(r.id)}">${esc(r.room_number)} - ${esc(r.room_type)}</option>`).join('');
 }
-function renderBookings(){
-  $('bookingList').innerHTML=table(['Tamu','Telepon','Kamar','Check-in','Check-out','Total','Deposit','Status',''],bookings.map(b=>[
-    esc(b.guest_name),esc(b.phone||''),esc(rooms.find(r=>String(r.id)===String(b.room_id))?.room_number||b.room_id),
-    esc(b.check_in),esc(b.check_out),money(b.total_price),money(b.deposit),esc(b.status),
-    `<button class="danger" onclick="delBooking(${Number(b.id)})">Hapus</button>`
-  ]));
+function bookingStatusLabel(status){
+  return ({booked:'Booking',checked_in:'Check-in',checked_out:'Check-out',cancelled:'Batal'})[status]||status;
 }
+function renderBookings(){
+  $('bookingList').innerHTML=table(['Tamu','Telepon','Kamar','Check-in','Check-out','Total','Deposit','Status','Tindakan'],bookings.map(b=>{
+    let action='';
+    if(b.status==='booked') action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_in')">Check-in</button>`;
+    else if(b.status==='checked_in') action=`<button onclick="updateBookingStatus(${Number(b.id)},'checked_out')">Check-out</button>`;
+    action+=` <button class="danger" onclick="delBooking(${Number(b.id)})">Hapus</button>`;
+    return [
+      esc(b.guest_name),esc(b.phone||''),esc(rooms.find(r=>String(r.id)===String(b.room_id))?.room_number||b.room_id),
+      esc(b.check_in),esc(b.check_out),money(b.total_price),money(b.deposit),esc(bookingStatusLabel(b.status)),action
+    ];
+  }));
+}
+window.updateBookingStatus=async (id,status)=>{
+  const label=bookingStatusLabel(status);
+  if(!confirm(`Ubah status booking menjadi ${label}?`)) return;
+  const {error}=await sb.from('bookings').update({status}).eq('id',id);
+  if(error){alert('Gagal mengubah status: '+error.message);return;}
+  await loadBookings();
+  render();
+  alert(`Status booking berhasil diubah menjadi ${label}.`);
+};
 function renderTx(){
   $('txList').innerHTML=table(['Jenis','Kategori','Jumlah','Tanggal','Metode','Catatan',''],tx.map(t=>[
     t.transaction_type==='income'?'Pemasukan':'Pengeluaran',esc(t.category),money(t.amount),
