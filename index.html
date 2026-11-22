@@ -55,6 +55,7 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       <button class="active" data-tab="dashboard">Dashboard</button>
       <button data-tab="rooms">Kamar</button>
       <button data-tab="bookings">Booking &amp; Tamu</button>
+      <button data-tab="history">Riwayat Tamu</button>
       <button data-tab="finance">Keuangan</button>
       <button data-tab="reports">Laporan</button>
       <button data-tab="settings">Pengaturan</button>
@@ -101,7 +102,15 @@ form.grid input,form.grid select,form.grid textarea{width:100%}
       </div>
       <div class="panel"><h3>Daftar Booking</h3><div id="bookingList"></div></div>
     </div>
-
+<div id="history" class="section">
+  <div class="panel">
+    <h3>Riwayat Tamu Hotel</h3>
+    <input id="historySearch" type="text"
+      placeholder="Cari nama tamu atau nomor kamar..."
+      oninput="renderHistory()">
+    <div id="historyList"></div>
+  </div>
+</div>
     <div id="finance" class="section">
       <div class="panel">
         <h3>Tambah Transaksi</h3>
@@ -210,7 +219,7 @@ async function loadProfile(){
   $('hotelPhone').value=profile.phone||'';
 }
 function render(){
-  renderDash();renderRooms();renderBookings();renderTx();renderReport();fillRoomSelect();
+  renderDash();renderRooms();renderBookings();renderTx();renderReport();fillRoomSelect();renderHistory();
 }
 function renderDash(){
   const today=dateToday();
@@ -389,6 +398,36 @@ $('csvBtn').onclick=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='laporan-hotel.csv';a.click();
   URL.revokeObjectURL(a.href);
 };
+  
+window.renderHistory = function () {
+  const container = document.getElementById('historyList');
+  if (!container) return;
+
+  const keyword = (
+    document.getElementById('historySearch')?.value || ''
+  ).toLowerCase();
+
+  const history = bookings.filter(b =>
+    b.status === 'checked_out' &&
+    JSON.stringify(b).toLowerCase().includes(keyword)
+  );
+
+  if (!history.length) {
+    container.innerHTML = '<p>Belum ada riwayat tamu.</p>';
+    return;
+  }
+
+  container.innerHTML = history.map(b => `
+    <div class="panel" style="margin-top:12px;padding:12px">
+      <h4>${b.guest_name || b.name || 'Tamu'}</h4>
+      <p>Nomor kamar: ${b.room_number || b.room_id || '-'}</p>
+      <p>Check-in: ${b.check_in || '-'}</p>
+      <p>Check-out: ${b.check_out || '-'}</p>
+      <p>Status: Check-out</p>
+    </div>
+  `).join('');
+};
+
 </script>
 </body>
 </html>
