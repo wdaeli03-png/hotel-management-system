@@ -155,6 +155,7 @@ td,th{border-bottom:1px solid #e5eeee;padding:11px}
       <button data-tab="activity" id="activityNav" class="hidden">Riwayat Aktivitas</button>
       <button data-tab="repair" id="repairNav" class="hidden">Perbaiki Data</button>
       <button data-tab="settings">Pengaturan</button>
+      <button data-tab="employees" id="employeesNav" class="hidden">Manajemen Karyawan</button>
     </div>
 
     <div id="dashboard" class="section show">
@@ -311,11 +312,49 @@ td,th{border-bottom:1px solid #e5eeee;padding:11px}
         <p id="profileMsg" class="muted"></p>
       </div>
     </div>
+    <div id="employees" class="section">
+      <div class="panel">
+        <h3>Manajemen Karyawan</h3>
+        <p class="muted">Pemilik hotel dapat membuat akun login karyawan secara langsung. Akun baru akan diberi hak akses karyawan.</p>
+        <form class="grid" id="employeeForm">
+          <input id="employeeName" placeholder="Nama karyawan" required>
+          <input id="employeeEmail" type="email" placeholder="Email karyawan" required>
+          <input id="employeePassword" type="password" placeholder="Password minimal 8 karakter" minlength="8" required>
+          <button type="submit" id="employeeSaveBtn">Tambah Karyawan</button>
+        </form>
+        <div id="employeeMessage" class="message" aria-live="polite"></div>
+      </div>
+    </div>
     <p class="muted">Data tersimpan online di Supabase. Pengingat WhatsApp dapat dibuka melalui tombol WA pengingat; pengiriman otomatis terjadwal memerlukan layanan WhatsApp Business dan server terjadwal.</p>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+/* ===== MENU TAMBAH KARYAWAN (OWNER ONLY) ===== */
+$('employeeForm').onsubmit = async function(e){
+  e.preventDefault();
+  if(!isOwner()){ alert('Hanya pemilik hotel yang dapat menambahkan karyawan.'); return; }
+  const name=$('employeeName').value.trim();
+  const email=$('employeeEmail').value.trim().toLowerCase();
+  const password=$('employeePassword').value;
+  const btn=$('employeeSaveBtn'), msg=$('employeeMessage');
+  if(password.length<8){msg.textContent='Password minimal 8 karakter.';return;}
+  btn.disabled=true;btn.textContent='Membuat akun...';msg.textContent='Sedang membuat akun karyawan...';
+  try{
+    const {data,error}=await sb.functions.invoke('add-hotel-employee',{body:{name,email,password}});
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    msg.textContent='Berhasil! Akun '+email+' dibuat dan dapat login.';
+    $('employeeForm').reset();
+    alert('Akun karyawan berhasil dibuat!');
+  }catch(err){
+    const detail=err?.message||String(err);
+    msg.textContent='Gagal membuat akun: '+detail;
+    alert('Gagal membuat akun: '+detail);
+  }finally{btn.disabled=false;btn.textContent='Tambah Karyawan';}
+};
+
+</script>
 <script>
 'use strict';
 
@@ -360,6 +399,7 @@ function applyRoleAccess(){
   document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('hidden',!isOwner() && ['settings'].includes(b.dataset.tab)));
   $('repairNav').classList.toggle('hidden',isOwner());
   $('activityNav').classList.toggle('hidden',!isOwner());
+  $('employeesNav').classList.toggle('hidden',!isOwner());
   const sub=document.querySelector('.head .muted'); if(sub) sub.textContent=isOwner()?'Dashboard pengelolaan hotel · Pemilik':'Dashboard operasional · Karyawan';
   $('txType').value=isOwner()?'income':'expense';
   $('txType').classList.toggle('hidden',!isOwner());
@@ -726,6 +766,7 @@ document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('show'));
 
   if(!isOwner() && ['settings'].includes(b.dataset.tab)){alert('Menu ini hanya untuk pemilik hotel.');return;}
+  if(b.dataset.tab==='employees' && !isOwner()){alert('Menu ini hanya untuk pemilik hotel.');return;}
   if(b.dataset.tab==='repair' && isOwner()){alert('Menu ini khusus akun karyawan.');return;}
   const target = $(b.dataset.tab);
   if (!target) {
